@@ -1,8 +1,9 @@
 "use client";
 
-import { tasks } from "@/db/schema";
 import type * as React from "react";
 import type { FieldPath, FieldValues, UseFormReturn } from "react-hook-form";
+
+import { taskLabels, taskPriorities, taskStatuses } from "../_lib/validations";
 
 import {
   Form,
@@ -39,7 +40,7 @@ export function TaskForm<T extends FieldValues>({
     <Form {...form}>
       <form
         onSubmit={form.handleSubmit(onSubmit)}
-        className="flex flex-col gap-4 px-4"
+        className='flex flex-col gap-4 px-4'
       >
         <FormField
           control={form.control}
@@ -49,8 +50,8 @@ export function TaskForm<T extends FieldValues>({
               <FormLabel>Title</FormLabel>
               <FormControl>
                 <Textarea
-                  placeholder="Do a kickflip"
-                  className="resize-none"
+                  placeholder='Do a kickflip'
+                  className='resize-none'
                   {...field}
                 />
               </FormControl>
@@ -66,17 +67,17 @@ export function TaskForm<T extends FieldValues>({
               <FormLabel>Label</FormLabel>
               <Select onValueChange={field.onChange} defaultValue={field.value}>
                 <FormControl>
-                  <SelectTrigger className="capitalize">
-                    <SelectValue placeholder="Select a label" />
+                  <SelectTrigger className='capitalize'>
+                    <SelectValue placeholder='Select a label' />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
                   <SelectGroup>
-                    {tasks.label.enumValues.map((item) => (
+                    {taskLabels.map((item) => (
                       <SelectItem
                         key={item}
                         value={item}
-                        className="capitalize"
+                        className='capitalize'
                       >
                         {item}
                       </SelectItem>
@@ -96,17 +97,17 @@ export function TaskForm<T extends FieldValues>({
               <FormLabel>Status</FormLabel>
               <Select onValueChange={field.onChange} defaultValue={field.value}>
                 <FormControl>
-                  <SelectTrigger className="capitalize">
-                    <SelectValue placeholder="Select a status" />
+                  <SelectTrigger className='capitalize'>
+                    <SelectValue placeholder='Select a status' />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
                   <SelectGroup>
-                    {tasks.status.enumValues.map((item) => (
+                    {taskStatuses.map((item) => (
                       <SelectItem
                         key={item}
                         value={item}
-                        className="capitalize"
+                        className='capitalize'
                       >
                         {item}
                       </SelectItem>
@@ -126,17 +127,17 @@ export function TaskForm<T extends FieldValues>({
               <FormLabel>Priority</FormLabel>
               <Select onValueChange={field.onChange} defaultValue={field.value}>
                 <FormControl>
-                  <SelectTrigger className="capitalize">
-                    <SelectValue placeholder="Select a priority" />
+                  <SelectTrigger className='capitalize'>
+                    <SelectValue placeholder='Select a priority' />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
                   <SelectGroup>
-                    {tasks.priority.enumValues.map((item) => (
+                    {taskPriorities.map((item) => (
                       <SelectItem
                         key={item}
                         value={item}
-                        className="capitalize"
+                        className='capitalize'
                       >
                         {item}
                       </SelectItem>
@@ -156,10 +157,10 @@ export function TaskForm<T extends FieldValues>({
               <FormLabel>Estimated Hours</FormLabel>
               <FormControl>
                 <Input
-                  type="number"
-                  placeholder="Enter estimated hours"
-                  step="0.5"
-                  min="0"
+                  type='number'
+                  placeholder='Enter estimated hours'
+                  step='0.5'
+                  min='0'
                   {...field}
                   onChange={(event) =>
                     field.onChange(event.target.valueAsNumber)

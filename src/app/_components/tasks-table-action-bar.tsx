@@ -1,6 +1,6 @@
 "use client";
 
-import { type Task, tasks } from "@/db/schema";
+import type { Task } from "@/db/indexeddb"; // Import Task from indexeddb
 import { SelectTrigger } from "@radix-ui/react-select";
 import type { Table } from "@tanstack/react-table";
 import { ArrowUp, CheckCircle2, Download, Trash2 } from "lucide-react";
@@ -42,7 +42,7 @@ export function TasksTableActionBar({ table }: TasksTableActionBarProps) {
 
   const getIsActionPending = React.useCallback(
     (action: Action) => isPending && currentAction === action,
-    [isPending, currentAction],
+    [isPending, currentAction]
   );
 
   const onTaskUpdate = React.useCallback(
@@ -54,7 +54,7 @@ export function TasksTableActionBar({ table }: TasksTableActionBarProps) {
       value: Task["status"] | Task["priority"];
     }) => {
       setCurrentAction(
-        field === "status" ? "update-status" : "update-priority",
+        field === "status" ? "update-status" : "update-priority"
       );
       startTransition(async () => {
         const { error } = await updateTasks({
@@ -69,7 +69,7 @@ export function TasksTableActionBar({ table }: TasksTableActionBarProps) {
         toast.success("Tasks updated");
       });
     },
-    [rows],
+    [rows]
   );
 
   const onTaskExport = React.useCallback(() => {
@@ -101,10 +101,10 @@ export function TasksTableActionBar({ table }: TasksTableActionBarProps) {
     <DataTableActionBar table={table} visible={rows.length > 0}>
       <DataTableActionBarSelection table={table} />
       <Separator
-        orientation="vertical"
-        className="hidden data-[orientation=vertical]:h-5 sm:block"
+        orientation='vertical'
+        className='hidden data-[orientation=vertical]:h-5 sm:block'
       />
-      <div className="flex items-center gap-1.5">
+      <div className='flex items-center gap-1.5'>
         <Select
           onValueChange={(value: Task["status"]) =>
             onTaskUpdate({ field: "status", value })
@@ -112,17 +112,17 @@ export function TasksTableActionBar({ table }: TasksTableActionBarProps) {
         >
           <SelectTrigger asChild>
             <DataTableActionBarAction
-              size="icon"
-              tooltip="Update status"
+              size='icon'
+              tooltip='Update status'
               isPending={getIsActionPending("update-status")}
             >
               <CheckCircle2 />
             </DataTableActionBarAction>
           </SelectTrigger>
-          <SelectContent align="center">
+          <SelectContent align='center'>
             <SelectGroup>
-              {tasks.status.enumValues.map((status) => (
-                <SelectItem key={status} value={status} className="capitalize">
+              {["todo", "in-progress", "done", "canceled"].map((status) => (
+                <SelectItem key={status} value={status} className='capitalize'>
                   {status}
                 </SelectItem>
               ))}
@@ -136,20 +136,20 @@ export function TasksTableActionBar({ table }: TasksTableActionBarProps) {
         >
           <SelectTrigger asChild>
             <DataTableActionBarAction
-              size="icon"
-              tooltip="Update priority"
+              size='icon'
+              tooltip='Update priority'
               isPending={getIsActionPending("update-priority")}
             >
               <ArrowUp />
             </DataTableActionBarAction>
           </SelectTrigger>
-          <SelectContent align="center">
+          <SelectContent align='center'>
             <SelectGroup>
-              {tasks.priority.enumValues.map((priority) => (
+              {["low", "medium", "high"].map((priority) => (
                 <SelectItem
                   key={priority}
                   value={priority}
-                  className="capitalize"
+                  className='capitalize'
                 >
                   {priority}
                 </SelectItem>
@@ -158,16 +158,16 @@ export function TasksTableActionBar({ table }: TasksTableActionBarProps) {
           </SelectContent>
         </Select>
         <DataTableActionBarAction
-          size="icon"
-          tooltip="Export tasks"
+          size='icon'
+          tooltip='Export tasks'
           isPending={getIsActionPending("export")}
           onClick={onTaskExport}
         >
           <Download />
         </DataTableActionBarAction>
         <DataTableActionBarAction
-          size="icon"
-          tooltip="Delete tasks"
+          size='icon'
+          tooltip='Delete tasks'
           isPending={getIsActionPending("delete")}
           onClick={onTaskDelete}
         >

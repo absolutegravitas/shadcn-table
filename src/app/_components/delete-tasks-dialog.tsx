@@ -1,6 +1,6 @@
 "use client";
 
-import type { Task } from "@/db/schema";
+import type { Task } from "@/db/indexeddb"; // Import Task from indexeddb
 import type { Row } from "@tanstack/react-table";
 import { Loader, Trash } from "lucide-react";
 import * as React from "react";
@@ -69,8 +69,8 @@ export function DeleteTasksDialog({
       <Dialog {...props}>
         {showTrigger ? (
           <DialogTrigger asChild>
-            <Button variant="outline" size="sm">
-              <Trash className="mr-2 size-4" aria-hidden="true" />
+            <Button variant='outline' size='sm'>
+              <Trash className='mr-2 size-4' aria-hidden='true' />
               Delete ({tasks.length})
             </Button>
           </DialogTrigger>
@@ -80,24 +80,24 @@ export function DeleteTasksDialog({
             <DialogTitle>Are you absolutely sure?</DialogTitle>
             <DialogDescription>
               This action cannot be undone. This will permanently delete your{" "}
-              <span className="font-medium">{tasks.length}</span>
+              <span className='font-medium'>{tasks.length}</span>
               {tasks.length === 1 ? " task" : " tasks"} from our servers.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="gap-2 sm:space-x-0">
+          <DialogFooter className='gap-2 sm:space-x-0'>
             <DialogClose asChild>
-              <Button variant="outline">Cancel</Button>
+              <Button variant='outline'>Cancel</Button>
             </DialogClose>
             <Button
-              aria-label="Delete selected rows"
-              variant="destructive"
+              aria-label='Delete selected rows'
+              variant='destructive'
               onClick={onDelete}
               disabled={isDeletePending}
             >
               {isDeletePending && (
                 <Loader
-                  className="mr-2 size-4 animate-spin"
-                  aria-hidden="true"
+                  className='mr-2 size-4 animate-spin'
+                  aria-hidden='true'
                 />
               )}
               Delete
@@ -112,8 +112,8 @@ export function DeleteTasksDialog({
     <Drawer {...props}>
       {showTrigger ? (
         <DrawerTrigger asChild>
-          <Button variant="outline" size="sm">
-            <Trash className="mr-2 size-4" aria-hidden="true" />
+          <Button variant='outline' size='sm'>
+            <Trash className='mr-2 size-4' aria-hidden='true' />
             Delete ({tasks.length})
           </Button>
         </DrawerTrigger>
@@ -123,22 +123,22 @@ export function DeleteTasksDialog({
           <DrawerTitle>Are you absolutely sure?</DrawerTitle>
           <DrawerDescription>
             This action cannot be undone. This will permanently delete your{" "}
-            <span className="font-medium">{tasks.length}</span>
+            <span className='font-medium'>{tasks.length}</span>
             {tasks.length === 1 ? " task" : " tasks"} from our servers.
           </DrawerDescription>
         </DrawerHeader>
-        <DrawerFooter className="gap-2 sm:space-x-0">
+        <DrawerFooter className='gap-2 sm:space-x-0'>
           <DrawerClose asChild>
-            <Button variant="outline">Cancel</Button>
+            <Button variant='outline'>Cancel</Button>
           </DrawerClose>
           <Button
-            aria-label="Delete selected rows"
-            variant="destructive"
+            aria-label='Delete selected rows'
+            variant='destructive'
             onClick={onDelete}
             disabled={isDeletePending}
           >
             {isDeletePending && (
-              <Loader className="mr-2 size-4 animate-spin" aria-hidden="true" />
+              <Loader className='mr-2 size-4 animate-spin' aria-hidden='true' />
             )}
             Delete
           </Button>

@@ -1,6 +1,6 @@
 "use client";
 
-import type { Task } from "@/db/schema";
+import type { Task } from "@/db/indexeddb";
 import type { Table } from "@tanstack/react-table";
 import { Download } from "lucide-react";
 
@@ -18,7 +18,7 @@ export function TasksTableToolbarActions({
   table,
 }: TasksTableToolbarActionsProps) {
   return (
-    <div className="flex items-center gap-2">
+    <div className='flex items-center gap-2'>
       {table.getFilteredSelectedRowModel().rows.length > 0 ? (
         <DeleteTasksDialog
           tasks={table
@@ -29,8 +29,8 @@ export function TasksTableToolbarActions({
       ) : null}
       <CreateTaskSheet />
       <Button
-        variant="outline"
-        size="sm"
+        variant='outline'
+        size='sm'
         onClick={() =>
           exportTableToCSV(table, {
             filename: "tasks",

@@ -1,6 +1,6 @@
 "use client";
 
-import { type Task, tasks } from "@/db/schema";
+import type { Task } from "@/db/indexeddb";
 import type { DataTableRowAction } from "@/types/data-table";
 import type { ColumnDef } from "@tanstack/react-table";
 import {
@@ -62,16 +62,16 @@ export function getTasksTableColumns({
             (table.getIsSomePageRowsSelected() && "indeterminate")
           }
           onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-          aria-label="Select all"
-          className="translate-y-0.5"
+          aria-label='Select all'
+          className='translate-y-0.5'
         />
       ),
       cell: ({ row }) => (
         <Checkbox
           checked={row.getIsSelected()}
           onCheckedChange={(value) => row.toggleSelected(!!value)}
-          aria-label="Select row"
-          className="translate-y-0.5"
+          aria-label='Select row'
+          className='translate-y-0.5'
         />
       ),
       enableSorting: false,
@@ -82,9 +82,9 @@ export function getTasksTableColumns({
       id: "code",
       accessorKey: "code",
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Task" />
+        <DataTableColumnHeader column={column} title='Task' />
       ),
-      cell: ({ row }) => <div className="w-20">{row.getValue("code")}</div>,
+      cell: ({ row }) => <div className='w-20'>{row.getValue("code")}</div>,
       enableSorting: false,
       enableHiding: false,
     },
@@ -92,17 +92,17 @@ export function getTasksTableColumns({
       id: "title",
       accessorKey: "title",
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Title" />
+        <DataTableColumnHeader column={column} title='Title' />
       ),
       cell: ({ row }) => {
-        const label = tasks.label.enumValues.find(
-          (label) => label === row.original.label,
+        const label = ["bug", "feature", "documentation", "enhancement"].find(
+          (label) => label === row.original.label
         );
 
         return (
-          <div className="flex items-center gap-2">
-            {label && <Badge variant="outline">{label}</Badge>}
-            <span className="max-w-[31.25rem] truncate font-medium">
+          <div className='flex items-center gap-2'>
+            {label && <Badge variant='outline'>{label}</Badge>}
+            <span className='max-w-[31.25rem] truncate font-medium'>
               {row.getValue("title")}
             </span>
           </div>
@@ -120,32 +120,30 @@ export function getTasksTableColumns({
       id: "status",
       accessorKey: "status",
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Status" />
+        <DataTableColumnHeader column={column} title='Status' />
       ),
       cell: ({ cell }) => {
-        const status = tasks.status.enumValues.find(
-          (status) => status === cell.getValue<Task["status"]>(),
-        );
+        const status = cell.getValue<Task["status"]>();
 
         if (!status) return null;
 
         const Icon = getStatusIcon(status);
 
         return (
-          <Badge variant="outline" className="py-1 [&>svg]:size-3.5">
+          <Badge variant='outline' className='py-1 [&>svg]:size-3.5'>
             <Icon />
-            <span className="capitalize">{status}</span>
+            <span className='capitalize'>{status}</span>
           </Badge>
         );
       },
       meta: {
         label: "Status",
         variant: "multiSelect",
-        options: tasks.status.enumValues.map((status) => ({
+        options: ["todo", "in-progress", "done", "canceled"].map((status) => ({
           label: status.charAt(0).toUpperCase() + status.slice(1),
           value: status,
-          count: statusCounts[status],
-          icon: getStatusIcon(status),
+          count: statusCounts[status as Task["status"]],
+          icon: getStatusIcon(status as Task["status"]),
         })),
         icon: CircleDashed,
       },
@@ -155,32 +153,30 @@ export function getTasksTableColumns({
       id: "priority",
       accessorKey: "priority",
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Priority" />
+        <DataTableColumnHeader column={column} title='Priority' />
       ),
       cell: ({ cell }) => {
-        const priority = tasks.priority.enumValues.find(
-          (priority) => priority === cell.getValue<Task["priority"]>(),
-        );
+        const priority = cell.getValue<Task["priority"]>();
 
         if (!priority) return null;
 
         const Icon = getPriorityIcon(priority);
 
         return (
-          <Badge variant="outline" className="py-1 [&>svg]:size-3.5">
+          <Badge variant='outline' className='py-1 [&>svg]:size-3.5'>
             <Icon />
-            <span className="capitalize">{priority}</span>
+            <span className='capitalize'>{priority}</span>
           </Badge>
         );
       },
       meta: {
         label: "Priority",
         variant: "multiSelect",
-        options: tasks.priority.enumValues.map((priority) => ({
+        options: ["low", "medium", "high"].map((priority) => ({
           label: priority.charAt(0).toUpperCase() + priority.slice(1),
           value: priority,
-          count: priorityCounts[priority],
-          icon: getPriorityIcon(priority),
+          count: priorityCounts[priority as Task["priority"]],
+          icon: getPriorityIcon(priority as Task["priority"]),
         })),
         icon: ArrowUpDown,
       },
@@ -190,11 +186,11 @@ export function getTasksTableColumns({
       id: "estimatedHours",
       accessorKey: "estimatedHours",
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Est. Hours" />
+        <DataTableColumnHeader column={column} title='Est. Hours' />
       ),
       cell: ({ cell }) => {
         const estimatedHours = cell.getValue<number>();
-        return <div className="w-20 text-right">{estimatedHours}</div>;
+        return <div className='w-20 text-right'>{estimatedHours}</div>;
       },
       meta: {
         label: "Est. Hours",
@@ -209,7 +205,7 @@ export function getTasksTableColumns({
       id: "createdAt",
       accessorKey: "createdAt",
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Created At" />
+        <DataTableColumnHeader column={column} title='Created At' />
       ),
       cell: ({ cell }) => formatDate(cell.getValue<Date>()),
       meta: {
@@ -228,14 +224,14 @@ export function getTasksTableColumns({
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
-                aria-label="Open menu"
-                variant="ghost"
-                className="flex size-8 p-0 data-[state=open]:bg-muted"
+                aria-label='Open menu'
+                variant='ghost'
+                className='flex size-8 p-0 data-[state=open]:bg-muted'
               >
-                <Ellipsis className="size-4" aria-hidden="true" />
+                <Ellipsis className='size-4' aria-hidden='true' />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-40">
+            <DropdownMenuContent align='end' className='w-40'>
               <DropdownMenuItem
                 onSelect={() => setRowAction({ row, variant: "update" })}
               >
@@ -257,21 +253,23 @@ export function getTasksTableColumns({
                             loading: "Updating...",
                             success: "Label updated",
                             error: (err) => getErrorMessage(err),
-                          },
+                          }
                         );
                       });
                     }}
                   >
-                    {tasks.label.enumValues.map((label) => (
-                      <DropdownMenuRadioItem
-                        key={label}
-                        value={label}
-                        className="capitalize"
-                        disabled={isUpdatePending}
-                      >
-                        {label}
-                      </DropdownMenuRadioItem>
-                    ))}
+                    {["bug", "feature", "documentation", "enhancement"].map(
+                      (label) => (
+                        <DropdownMenuRadioItem
+                          key={label}
+                          value={label}
+                          className='capitalize'
+                          disabled={isUpdatePending}
+                        >
+                          {label}
+                        </DropdownMenuRadioItem>
+                      )
+                    )}
                   </DropdownMenuRadioGroup>
                 </DropdownMenuSubContent>
               </DropdownMenuSub>

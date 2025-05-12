@@ -1,6 +1,6 @@
 "use client";
 
-import type { Task } from "@/db/schema";
+import type { Task } from "@/db/indexeddb";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader } from "lucide-react";
 import * as React from "react";
@@ -62,25 +62,25 @@ export function UpdateTaskSheet({ task, ...props }: UpdateTaskSheetProps) {
 
   return (
     <Sheet {...props}>
-      <SheetContent className="flex flex-col gap-6 sm:max-w-md">
-        <SheetHeader className="text-left">
+      <SheetContent className='flex flex-col gap-6 sm:max-w-md'>
+        <SheetHeader className='text-left'>
           <SheetTitle>Update task</SheetTitle>
           <SheetDescription>
             Update the task details and save the changes
           </SheetDescription>
         </SheetHeader>
         <TaskForm<UpdateTaskSchema> form={form} onSubmit={onSubmit}>
-          <SheetFooter className="gap-2 pt-2 sm:space-x-0">
+          <SheetFooter className='gap-2 pt-2 sm:space-x-0'>
             <SheetClose asChild>
-              <Button type="button" variant="outline">
+              <Button type='button' variant='outline'>
                 Cancel
               </Button>
             </SheetClose>
             <Button disabled={isPending}>
               {isPending && (
                 <Loader
-                  className="mr-2 size-4 animate-spin"
-                  aria-hidden="true"
+                  className='mr-2 size-4 animate-spin'
+                  aria-hidden='true'
                 />
               )}
               Save
