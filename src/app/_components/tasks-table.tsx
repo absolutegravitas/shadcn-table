@@ -18,12 +18,14 @@ import { DataTableFilterMenu } from "@/components/data-table/data-table-filter-m
 import { DataTableSortList } from "@/components/data-table/data-table-sort-list";
 import { DataTableToolbar } from "@/components/data-table/data-table-toolbar";
 import { DataTableSkeleton } from "@/components/data-table/data-table-skeleton"; // Import skeleton
+import { db } from "@/db/indexeddb"; // Import Dexie db instance
 import {
   getEstimatedHoursRange,
   getTaskPriorityCounts,
   getTaskStatusCounts,
-  getTasks,
-} from "../_lib/queries"; // Keep imports for client-side fetching
+  getTasks, // This is the client-side getTasks from queries.ts (reads from IDB)
+} from "../_lib/queries";
+import { getAllTasksFromKV } from "../_lib/actions"; // Import new server action
 import { DeleteTasksDialog } from "./delete-tasks-dialog";
 import { useFeatureFlags } from "./feature-flags-provider";
 import { TasksTableActionBar } from "./tasks-table-action-bar";
@@ -52,28 +54,33 @@ export function TasksTable({ searchParams }: TasksTableProps) {
     max: 0,
   });
   const [isLoading, setIsLoading] = React.useState(true);
+  const [isSyncing, setIsSyncing] = React.useState(true); // For initial KV to IDB sync
 
   const [rowAction, setRowAction] =
     React.useState<DataTableRowAction<Task> | null>(null);
 
-  const debouncedFetchData = useDebouncedCallback(async () => {
+  // This function fetches data from IndexedDB based on current searchParams
+  const fetchFromIndexedDB = React.useCallback(async () => {
+    console.log(
+      "[TasksTable] fetchFromIndexedDB called with searchParams:",
+      JSON.stringify(searchParams, null, 2)
+    );
     setIsLoading(true);
     try {
+      // getTasks from queries.ts reads from IndexedDB and applies filtering/sorting/pagination
+      const tasksResult = await getTasks(searchParams);
       const [
-        tasksResult,
         statusCountsResult,
         priorityCountsResult,
         estimatedHoursRangeResult,
       ] = await Promise.all([
-        getTasks(), // Call simplified getTasks
-        getTaskStatusCounts(),
+        getTaskStatusCounts(), // These can also be refactored to read from IDB if populated
         getTaskPriorityCounts(),
         getEstimatedHoursRange(),
       ]);
 
       setData(tasksResult.data);
-      // TanStack Table will handle pagination, so pageCount is based on total data
-      setPageCount(Math.ceil(tasksResult.data.length / searchParams.perPage));
+      setPageCount(tasksResult.pageCount); // pageCount from client-side getTasks
       setStatusCounts(statusCountsResult);
       setPriorityCounts(priorityCountsResult);
       setEstimatedHoursRange(estimatedHoursRangeResult);
@@ -83,11 +90,77 @@ export function TasksTable({ searchParams }: TasksTableProps) {
     } finally {
       setIsLoading(false);
     }
-  }, 500); // Debounce with a default of 500ms
+  }, [searchParams]); // Add searchParams to dependency array
+
+  // Effect for initial data sync from KV to IndexedDB
+  React.useEffect(() => {
+    async function syncKVtoIndexedDB() {
+      setIsSyncing(true);
+      setIsLoading(true); // Also set general loading true
+      try {
+        const kvTasksResult = await getAllTasksFromKV();
+        if (kvTasksResult.data) {
+          await db.tasks.bulkPut(kvTasksResult.data); // Populate/update IndexedDB
+          // After syncing, trigger a fetch from IndexedDB to populate the table
+          await fetchFromIndexedDB();
+        } else if (kvTasksResult.error) {
+          console.error("Error syncing KV to IndexedDB:", kvTasksResult.error);
+          // Fallback or error display if KV fetch fails
+          // For now, try to load from IDB anyway or show error
+          await fetchFromIndexedDB(); // Attempt to load from IDB even if KV sync failed
+        }
+      } catch (error: any) {
+        // Catch as 'any' to inspect properties
+        console.error("--- Detailed Error in syncKVtoIndexedDB ---");
+        console.error("Caught Error Object:", error);
+        if (error instanceof Error) {
+          console.error("Error Name:", error.name);
+          console.error("Error Message:", error.message);
+          console.error("Error Stack:", error.stack);
+        } else if (typeof error === "object" && error !== null) {
+          // Fallback for non-Error objects
+          console.error("Error (raw object):", JSON.stringify(error, null, 2));
+        }
+
+        // Attempt to log response text if it's a fetch-like error response object
+        if (
+          error &&
+          error.response &&
+          typeof error.response.text === "function"
+        ) {
+          error.response
+            .text()
+            .then((text: string) => {
+              console.error("Error Response Text:", text);
+            })
+            .catch((textErr: any) => {
+              console.error("Error trying to get response text:", textErr);
+            });
+        }
+        console.error("--- End Detailed Error ---");
+        // Attempt to load from IDB on any sync error, IDB might have stale data but better than nothing
+        await fetchFromIndexedDB();
+      } finally {
+        setIsSyncing(false);
+        // setIsLoading(false); // setIsLoading will be handled by fetchFromIndexedDB
+      }
+    }
+    syncKVtoIndexedDB();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run once on mount
+
+  // Debounced fetch from IndexedDB when searchParams change
+  const debouncedFetchFromIndexedDB = useDebouncedCallback(
+    fetchFromIndexedDB,
+    500
+  );
 
   React.useEffect(() => {
-    debouncedFetchData();
-  }, [searchParams, debouncedFetchData]); // Refetch data when searchParams change or debounced function changes
+    // Don't fetch if initial sync is still happening, unless it's the very first call from sync
+    if (!isSyncing) {
+      debouncedFetchFromIndexedDB();
+    }
+  }, [searchParams, isSyncing, debouncedFetchFromIndexedDB]);
 
   const columns = React.useMemo(
     () =>
@@ -96,8 +169,15 @@ export function TasksTable({ searchParams }: TasksTableProps) {
         priorityCounts,
         estimatedHoursRange,
         setRowAction,
+        refreshTableData: fetchFromIndexedDB, // Pass the function here
       }),
-    [statusCounts, priorityCounts, estimatedHoursRange]
+    [
+      statusCounts,
+      priorityCounts,
+      estimatedHoursRange,
+      setRowAction,
+      fetchFromIndexedDB,
+    ] // Add dependencies
   );
 
   const { table, shallow, debounceMs, throttleMs } = useDataTable({
@@ -179,7 +259,13 @@ export function TasksTable({ searchParams }: TasksTableProps) {
         onOpenChange={() => setRowAction(null)}
         tasks={rowAction?.row.original ? [rowAction?.row.original] : []}
         showTrigger={false}
-        onSuccess={() => rowAction?.row.toggleSelected(false)}
+        onSuccess={() => {
+          // First, ensure row selection is cleared if the row still exists in the table's context
+          // This might be less relevant if fetchFromIndexedDB causes a full re-render with new row objects
+          rowAction?.row.toggleSelected(false);
+          // Then, refresh the table data from IndexedDB
+          fetchFromIndexedDB();
+        }}
       />
     </>
   );

@@ -14,7 +14,7 @@ const sortingItemSchema = z.object({
 });
 
 export const getSortingStateParser = <TData>(
-  columnIds?: string[] | Set<string>,
+  columnIds?: string[] | Set<string>
 ) => {
   const validKeys = columnIds
     ? columnIds instanceof Set
@@ -44,14 +44,20 @@ export const getSortingStateParser = <TData>(
       a.length === b.length &&
       a.every(
         (item, index) =>
-          item.id === b[index]?.id && item.desc === b[index]?.desc,
+          item.id === b[index]?.id && item.desc === b[index]?.desc
       ),
   });
 };
 
 const filterItemSchema = z.object({
   id: z.string(),
-  value: z.union([z.string(), z.array(z.string())]),
+  value: z.union([
+    z.string(),
+    z.array(z.string()),
+    z.number(),
+    z.array(z.number()),
+    z.boolean(), // Added boolean for completeness, can be removed if no boolean filters
+  ]),
   variant: z.enum(dataTableConfig.filterVariants),
   operator: z.enum(dataTableConfig.operators),
   filterId: z.string(),
@@ -60,7 +66,7 @@ const filterItemSchema = z.object({
 export type FilterItemSchema = z.infer<typeof filterItemSchema>;
 
 export const getFiltersStateParser = <TData>(
-  columnIds?: string[] | Set<string>,
+  columnIds?: string[] | Set<string>
 ) => {
   const validKeys = columnIds
     ? columnIds instanceof Set
@@ -93,7 +99,7 @@ export const getFiltersStateParser = <TData>(
           filter.id === b[index]?.id &&
           filter.value === b[index]?.value &&
           filter.variant === b[index]?.variant &&
-          filter.operator === b[index]?.operator,
+          filter.operator === b[index]?.operator
       ),
   });
 };

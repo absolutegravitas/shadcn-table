@@ -14,6 +14,7 @@ import {
 import * as React from "react";
 import { toast } from "sonner";
 
+import { db } from "@/db/indexeddb"; // Import Dexie db instance
 import { DataTableColumnHeader } from "@/components/data-table/data-table-column-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -44,6 +45,7 @@ interface GetTasksTableColumnsProps {
   setRowAction: React.Dispatch<
     React.SetStateAction<DataTableRowAction<Task> | null>
   >;
+  refreshTableData: () => Promise<void>; // Callback to refresh table data from IDB
 }
 
 export function getTasksTableColumns({
@@ -51,6 +53,7 @@ export function getTasksTableColumns({
   priorityCounts,
   estimatedHoursRange,
   setRowAction,
+  refreshTableData, // Destructure the new prop
 }: GetTasksTableColumnsProps): ColumnDef<Task>[] {
   return [
     {
@@ -248,10 +251,19 @@ export function getTasksTableColumns({
                           updateTask({
                             id: row.original.id,
                             label: value as Task["label"],
+                          }).then(async (result) => {
+                            if (result.data && !result.error) {
+                              await db.tasks.put(result.data); // Update IndexedDB
+                              await refreshTableData(); // Refresh table from IndexedDB
+                              return "Label updated and synced"; // Message for success toast
+                            } else if (result.error) {
+                              throw new Error(result.error);
+                            }
+                            return "Label updated (no data returned or error)"; // Fallback message
                           }),
                           {
-                            loading: "Updating...",
-                            success: "Label updated",
+                            loading: "Updating label...",
+                            success: (message) => message, // Use the message from the promise chain
                             error: (err) => getErrorMessage(err),
                           }
                         );

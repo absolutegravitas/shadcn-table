@@ -5,23 +5,33 @@ import { type Task } from "@/db/indexeddb";
 
 export async function initializeDatabase() {
   const taskCount = await db.tasks.count();
-
+  // console.log(`[IndexedDB Service] Initial task count: ${taskCount}`);
+  // The following block for seeding from mock-tasks.json is now disabled
+  // as Redis is the master and TasksTable component handles syncing from KV to IndexedDB.
+  /*
   if (taskCount === 0) {
     try {
-      const response = await fetch("/mock-tasks.json");
+      console.log("[IndexedDB Service] Attempting to seed from /mock-tasks.json as count is 0.");
+      const response = await fetch("/mock-tasks.json"); // This was causing 404
+      if (!response.ok) {
+        throw new Error(`Failed to fetch mock-tasks.json: ${response.statusText}`);
+      }
       const tasks = (await response.json()) as Task[];
-      // Map the fetched data to match the Task type, handling potential null titles and updated dates
       const tasksToInsert = tasks.map((task) => ({
         ...task,
-        title: task.title ?? "", // Provide a default empty string if title is null
-        updatedAt: task.updatedAt ?? new Date(), // Provide a default date if updatedAt is null
+        title: task.title ?? "",
+        updatedAt: task.updatedAt ?? new Date(),
       }));
       await db.tasks.bulkAdd(tasksToInsert);
-      console.log("Mock tasks added to IndexedDB");
+      console.log("[IndexedDB Service] Mock tasks added to IndexedDB from JSON.");
     } catch (error) {
-      console.error("Error fetching or adding mock tasks:", error);
+      console.error("[IndexedDB Service] Error fetching or adding mock tasks from JSON:", error);
     }
   }
+  */
+  console.log(
+    "[IndexedDB Service] initializeDatabase called. Seeding from JSON is disabled. Sync from Redis is handled by TasksTable."
+  );
 }
 
 export async function getTasks() {

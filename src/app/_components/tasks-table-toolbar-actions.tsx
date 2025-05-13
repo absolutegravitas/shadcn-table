@@ -6,6 +6,8 @@ import { Download } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { exportTableToCSV } from "@/lib/export";
+// Removed: import { seedTasksToRedis } from "@/app/_lib/actions";
+// Removed: import { toast } from "sonner";
 
 import { CreateTaskSheet } from "./create-task-sheet";
 import { DeleteTasksDialog } from "./delete-tasks-dialog";
@@ -24,7 +26,7 @@ export function TasksTableToolbarActions({
           tasks={table
             .getFilteredSelectedRowModel()
             .rows.map((row) => row.original)}
-          onSuccess={() => table.toggleAllRowsSelected(false)}
+          onSuccess={() => table.toggleAllRowsSelected(false)} // This onSuccess might need to refresh table data too
         />
       ) : null}
       <CreateTaskSheet />

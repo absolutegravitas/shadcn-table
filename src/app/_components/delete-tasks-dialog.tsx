@@ -28,8 +28,9 @@ import {
   DrawerTrigger,
 } from "@/components/ui/drawer";
 import { useMediaQuery } from "@/hooks/use-media-query";
+import { db } from "@/db/indexeddb"; // Import Dexie db instance
 
-import { deleteTasks } from "../_lib/actions";
+import { deleteTask, deleteTasks } from "../_lib/actions"; // Import both actions
 
 interface DeleteTasksDialogProps
   extends React.ComponentPropsWithoutRef<typeof Dialog> {
@@ -49,18 +50,40 @@ export function DeleteTasksDialog({
 
   function onDelete() {
     startDeleteTransition(async () => {
-      const { error } = await deleteTasks({
-        ids: tasks.map((task) => task.id),
-      });
+      let result: { error: string | null } | undefined;
+      const taskIdsToDelete = tasks.map((task) => task.id);
 
-      if (error) {
-        toast.error(error);
+      if (tasks.length === 1 && tasks[0]) {
+        result = await deleteTask({ id: tasks[0].id });
+      } else if (tasks.length > 0) {
+        result = await deleteTasks({ ids: taskIdsToDelete });
+      } else {
+        toast.error("No tasks selected for deletion.");
         return;
       }
 
-      props.onOpenChange?.(false);
-      toast.success("Tasks deleted");
-      onSuccess?.();
+      if (result?.error) {
+        toast.error(result.error);
+        return;
+      }
+
+      // Successfully deleted from server (Redis), now delete from IndexedDB
+      try {
+        await db.tasks.bulkDelete(taskIdsToDelete);
+        toast.success(
+          tasks.length === 1 ? "Task deleted" : `${tasks.length} tasks deleted`
+        );
+        props.onOpenChange?.(false); // Close dialog
+        onSuccess?.(); // Trigger table refresh (passed from TasksTable)
+      } catch (idbError) {
+        console.error("Error deleting tasks from IndexedDB:", idbError);
+        toast.error(
+          "Tasks deleted from server, but failed to update local data."
+        );
+        // Still call onSuccess to refresh from server/IDB state if possible
+        props.onOpenChange?.(false);
+        onSuccess?.();
+      }
     });
   }
 

@@ -103,7 +103,7 @@ export function DataTableFilterMenu<TData>({
         setSelectedColumn(null);
       }
     },
-    [inputValue, selectedColumn],
+    [inputValue, selectedColumn]
   );
 
   const [filters, setFilters] = useQueryState(
@@ -114,7 +114,7 @@ export function DataTableFilterMenu<TData>({
         clearOnDefault: true,
         shallow,
         throttleMs,
-      }),
+      })
   );
   const debouncedSetFilters = useDebouncedCallback(setFilters, debounceMs);
 
@@ -132,7 +132,7 @@ export function DataTableFilterMenu<TData>({
         value: filterValue,
         variant: column.columnDef.meta?.variant ?? "text",
         operator: getDefaultFilterOperator(
-          column.columnDef.meta?.variant ?? "text",
+          column.columnDef.meta?.variant ?? "text"
         ),
         filterId: generateId({ length: 8 }),
       };
@@ -145,26 +145,26 @@ export function DataTableFilterMenu<TData>({
         setInputValue("");
       }, 100);
     },
-    [filters, debouncedSetFilters],
+    [filters, debouncedSetFilters]
   );
 
   const onFilterRemove = React.useCallback(
     (filterId: string) => {
       const updatedFilters = filters.filter(
-        (filter) => filter.filterId !== filterId,
+        (filter) => filter.filterId !== filterId
       );
       debouncedSetFilters(updatedFilters);
       requestAnimationFrame(() => {
         triggerRef.current?.focus();
       });
     },
-    [filters, debouncedSetFilters],
+    [filters, debouncedSetFilters]
   );
 
   const onFilterUpdate = React.useCallback(
     (
       filterId: string,
-      updates: Partial<Omit<ExtendedColumnFilter<TData>, "filterId">>,
+      updates: Partial<Omit<ExtendedColumnFilter<TData>, "filterId">>
     ) => {
       debouncedSetFilters((prevFilters) => {
         const updatedFilters = prevFilters.map((filter) => {
@@ -176,7 +176,7 @@ export function DataTableFilterMenu<TData>({
         return updatedFilters;
       });
     },
-    [debouncedSetFilters],
+    [debouncedSetFilters]
   );
 
   const onFiltersReset = React.useCallback(() => {
@@ -227,11 +227,11 @@ export function DataTableFilterMenu<TData>({
         onFilterRemove(filters[filters.length - 1]?.filterId ?? "");
       }
     },
-    [filters, onFilterRemove],
+    [filters, onFilterRemove]
   );
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className='flex flex-wrap items-center gap-2'>
       {filters.map((filter) => (
         <DataTableFilterItem
           key={filter.filterId}
@@ -244,10 +244,10 @@ export function DataTableFilterMenu<TData>({
       ))}
       {filters.length > 0 && (
         <Button
-          aria-label="Reset all filters"
-          variant="outline"
-          size="icon"
-          className="size-8"
+          aria-label='Reset all filters'
+          variant='outline'
+          size='icon'
+          className='size-8'
           onClick={onFiltersReset}
         >
           <X />
@@ -256,8 +256,8 @@ export function DataTableFilterMenu<TData>({
       <Popover open={open} onOpenChange={onOpenChange}>
         <PopoverTrigger asChild>
           <Button
-            aria-label="Open filter command menu"
-            variant="outline"
+            aria-label='Open filter command menu'
+            variant='outline'
             size={filters.length > 0 ? "icon" : "sm"}
             className={cn(filters.length > 0 && "size-8", "h-8")}
             ref={triggerRef}
@@ -269,15 +269,15 @@ export function DataTableFilterMenu<TData>({
         </PopoverTrigger>
         <PopoverContent
           align={align}
-          className="w-full max-w-[var(--radix-popover-content-available-width)] origin-[var(--radix-popover-content-transform-origin)] p-0"
+          className='w-full max-w-[var(--radix-popover-content-available-width)] origin-[var(--radix-popover-content-transform-origin)] p-0'
           {...props}
         >
-          <Command loop className="[&_[cmdk-input-wrapper]_svg]:hidden">
+          <Command loop className='[&_[cmdk-input-wrapper]_svg]:hidden'>
             <CommandInput
               ref={inputRef}
               placeholder={
                 selectedColumn
-                  ? (selectedColumn.columnDef.meta?.label ?? selectedColumn.id)
+                  ? selectedColumn.columnDef.meta?.label ?? selectedColumn.id
                   : "Search fields..."
               }
               value={inputValue}
@@ -315,7 +315,7 @@ export function DataTableFilterMenu<TData>({
                         {column.columnDef.meta?.icon && (
                           <column.columnDef.meta.icon />
                         )}
-                        <span className="truncate">
+                        <span className='truncate'>
                           {column.columnDef.meta?.label ?? column.id}
                         </span>
                       </CommandItem>
@@ -337,7 +337,7 @@ interface DataTableFilterItemProps<TData> {
   columns: Column<TData>[];
   onFilterUpdate: (
     filterId: string,
-    updates: Partial<Omit<ExtendedColumnFilter<TData>, "filterId">>,
+    updates: Partial<Omit<ExtendedColumnFilter<TData>, "filterId">>
   ) => void;
   onFilterRemove: (filterId: string) => void;
 }
@@ -388,36 +388,36 @@ function DataTableFilterItem<TData>({
         showOperatorSelector,
         showValueSelector,
         onFilterRemove,
-      ],
+      ]
     );
 
     return (
       <div
         key={filter.filterId}
-        role="listitem"
+        role='listitem'
         id={filterItemId}
-        className="flex h-8 items-center rounded-md bg-background"
+        className='flex h-8 items-center rounded-md bg-background'
         onKeyDown={onItemKeyDown}
       >
         <Popover open={showFieldSelector} onOpenChange={setShowFieldSelector}>
           <PopoverTrigger asChild>
             <Button
-              variant="ghost"
-              size="sm"
-              className="rounded-none rounded-l-md border border-r-0 font-normal dark:bg-input/30"
+              variant='ghost'
+              size='sm'
+              className='rounded-none rounded-l-md border border-r-0 font-normal dark:bg-input/30'
             >
               {columnMeta?.icon && (
-                <columnMeta.icon className="text-muted-foreground" />
+                <columnMeta.icon className='text-muted-foreground' />
               )}
               {columnMeta?.label ?? column.id}
             </Button>
           </PopoverTrigger>
           <PopoverContent
-            align="start"
-            className="w-48 origin-[var(--radix-popover-content-transform-origin)] p-0"
+            align='start'
+            className='w-48 origin-[var(--radix-popover-content-transform-origin)] p-0'
           >
             <Command loop>
-              <CommandInput placeholder="Search fields..." />
+              <CommandInput placeholder='Search fields...' />
               <CommandList>
                 <CommandEmpty>No fields found.</CommandEmpty>
                 <CommandGroup>
@@ -430,7 +430,7 @@ function DataTableFilterItem<TData>({
                           id: column.id as Extract<keyof TData, string>,
                           variant: column.columnDef.meta?.variant ?? "text",
                           operator: getDefaultFilterOperator(
-                            column.columnDef.meta?.variant ?? "text",
+                            column.columnDef.meta?.variant ?? "text"
                           ),
                           value: "",
                         });
@@ -441,13 +441,13 @@ function DataTableFilterItem<TData>({
                       {column.columnDef.meta?.icon && (
                         <column.columnDef.meta.icon />
                       )}
-                      <span className="truncate">
+                      <span className='truncate'>
                         {column.columnDef.meta?.label ?? column.id}
                       </span>
                       <Check
                         className={cn(
                           "ml-auto",
-                          column.id === filter.id ? "opacity-100" : "opacity-0",
+                          column.id === filter.id ? "opacity-100" : "opacity-0"
                         )}
                       />
                     </CommandItem>
@@ -473,18 +473,18 @@ function DataTableFilterItem<TData>({
         >
           <SelectTrigger
             aria-controls={operatorListboxId}
-            className="h-8 rounded-none border-r-0 px-2.5 lowercase [&[data-size]]:h-8 [&_svg]:hidden"
+            className='h-8 rounded-none border-r-0 px-2.5 lowercase [&[data-size]]:h-8 [&_svg]:hidden'
           >
             <SelectValue placeholder={filter.operator} />
           </SelectTrigger>
           <SelectContent
             id={operatorListboxId}
-            className="origin-[var(--radix-select-content-transform-origin)]"
+            className='origin-[var(--radix-select-content-transform-origin)]'
           >
             {filterOperators.map((operator) => (
               <SelectItem
                 key={operator.value}
-                className="lowercase"
+                className='lowercase'
                 value={operator.value}
               >
                 {operator.label}
@@ -502,12 +502,12 @@ function DataTableFilterItem<TData>({
         })}
         <Button
           aria-controls={filterItemId}
-          variant="ghost"
-          size="sm"
-          className="h-full rounded-none rounded-r-md border border-l-0 px-1.5 font-normal dark:bg-input/30"
+          variant='ghost'
+          size='sm'
+          className='h-full rounded-none rounded-r-md border border-l-0 px-1.5 font-normal dark:bg-input/30'
           onClick={() => onFilterRemove(filter.filterId)}
         >
-          <X className="size-3.5" />
+          <X className='size-3.5' />
         </Button>
       </div>
     );
@@ -531,10 +531,10 @@ function FilterValueSelector<TData>({
     case "boolean":
       return (
         <CommandGroup>
-          <CommandItem value="true" onSelect={() => onSelect("true")}>
+          <CommandItem value='true' onSelect={() => onSelect("true")}>
             True
           </CommandItem>
-          <CommandItem value="false" onSelect={() => onSelect("false")}>
+          <CommandItem value='false' onSelect={() => onSelect("false")}>
             False
           </CommandItem>
         </CommandGroup>
@@ -551,9 +551,9 @@ function FilterValueSelector<TData>({
               onSelect={() => onSelect(option.value)}
             >
               {option.icon && <option.icon />}
-              <span className="truncate">{option.label}</span>
+              <span className='truncate'>{option.label}</span>
               {option.count && (
-                <span className="ml-auto font-mono text-xs">
+                <span className='ml-auto font-mono text-xs'>
                   {option.count}
                 </span>
               )}
@@ -567,7 +567,7 @@ function FilterValueSelector<TData>({
       return (
         <Calendar
           initialFocus
-          mode="single"
+          mode='single'
           selected={value ? new Date(value) : undefined}
           onSelect={(date) => onSelect(date?.getTime().toString() ?? "")}
         />
@@ -591,7 +591,7 @@ function FilterValueSelector<TData>({
             ) : (
               <>
                 <BadgeCheck />
-                <span className="truncate">Filter by &quot;{value}&quot;</span>
+                <span className='truncate'>Filter by &quot;{value}&quot;</span>
               </>
             )}
           </CommandItem>
@@ -614,7 +614,7 @@ function onFilterInputRender<TData>({
   inputId: string;
   onFilterUpdate: (
     filterId: string,
-    updates: Partial<Omit<ExtendedColumnFilter<TData>, "filterId">>,
+    updates: Partial<Omit<ExtendedColumnFilter<TData>, "filterId">>
   ) => void;
   showValueSelector: boolean;
   setShowValueSelector: (value: boolean) => void;
@@ -623,12 +623,12 @@ function onFilterInputRender<TData>({
     return (
       <div
         id={inputId}
-        role="status"
+        role='status'
         aria-label={`${column.columnDef.meta?.label} filter is ${
           filter.operator === "isEmpty" ? "empty" : "not empty"
         }`}
-        aria-live="polite"
-        className="h-full w-16 rounded-none border bg-transparent px-1.5 py-0.5 text-muted-foreground dark:bg-input/30"
+        aria-live='polite'
+        className='h-full w-16 rounded-none border bg-transparent px-1.5 py-0.5 text-muted-foreground dark:bg-input/30'
       />
     );
   }
@@ -661,7 +661,7 @@ function onFilterInputRender<TData>({
           type={isNumber ? "number" : "text"}
           inputMode={isNumber ? "numeric" : undefined}
           placeholder={column.columnDef.meta?.placeholder ?? "Enter value..."}
-          className="h-full w-24 rounded-none px-1.5"
+          className='h-full w-24 rounded-none px-1.5'
           defaultValue={typeof filter.value === "string" ? filter.value : ""}
           onChange={(event) =>
             onFilterUpdate(filter.filterId, { value: event.target.value })
@@ -685,13 +685,13 @@ function onFilterInputRender<TData>({
           <SelectTrigger
             id={inputId}
             aria-controls={inputListboxId}
-            className="rounded-none bg-transparent px-1.5 py-0.5 [&_svg]:hidden"
+            className='rounded-none bg-transparent px-1.5 py-0.5 [&_svg]:hidden'
           >
             <SelectValue placeholder={filter.value ? "True" : "False"} />
           </SelectTrigger>
           <SelectContent id={inputListboxId}>
-            <SelectItem value="true">True</SelectItem>
-            <SelectItem value="false">False</SelectItem>
+            <SelectItem value='true'>True</SelectItem>
+            <SelectItem value='false'>False</SelectItem>
           </SelectContent>
         </Select>
       );
@@ -707,7 +707,7 @@ function onFilterInputRender<TData>({
         : [filter.value];
 
       const selectedOptions = options.filter((option) =>
-        selectedValues.includes(option.value),
+        selectedValues.includes(option.value)
       );
 
       return (
@@ -716,9 +716,9 @@ function onFilterInputRender<TData>({
             <Button
               id={inputId}
               aria-controls={inputListboxId}
-              variant="ghost"
-              size="sm"
-              className="h-full min-w-16 rounded-none border px-1.5 font-normal dark:bg-input/30"
+              variant='ghost'
+              size='sm'
+              className='h-full min-w-16 rounded-none border px-1.5 font-normal dark:bg-input/30'
             >
               {selectedOptions.length === 0 ? (
                 filter.variant === "multiSelect" ? (
@@ -728,19 +728,19 @@ function onFilterInputRender<TData>({
                 )
               ) : (
                 <>
-                  <div className="-space-x-2 flex items-center rtl:space-x-reverse">
+                  <div className='-space-x-2 flex items-center rtl:space-x-reverse'>
                     {selectedOptions.map((selectedOption) =>
                       selectedOption.icon ? (
                         <div
                           key={selectedOption.value}
-                          className="rounded-full border bg-background p-0.5"
+                          className='rounded-full border bg-background p-0.5'
                         >
-                          <selectedOption.icon className="size-3.5" />
+                          <selectedOption.icon className='size-3.5' />
                         </div>
-                      ) : null,
+                      ) : null
                     )}
                   </div>
-                  <span className="truncate">
+                  <span className='truncate'>
                     {selectedOptions.length > 1
                       ? `${selectedOptions.length} selected`
                       : selectedOptions[0]?.label}
@@ -751,11 +751,11 @@ function onFilterInputRender<TData>({
           </PopoverTrigger>
           <PopoverContent
             id={inputListboxId}
-            align="start"
-            className="w-48 origin-[var(--radix-popover-content-transform-origin)] p-0"
+            align='start'
+            className='w-48 origin-[var(--radix-popover-content-transform-origin)] p-0'
           >
             <Command>
-              <CommandInput placeholder="Search options..." />
+              <CommandInput placeholder='Search options...' />
               <CommandList>
                 <CommandEmpty>No options found.</CommandEmpty>
                 <CommandGroup>
@@ -764,7 +764,7 @@ function onFilterInputRender<TData>({
                       key={option.value}
                       value={option.value}
                       onSelect={() => {
-                        const value =
+                        const value: any =
                           filter.variant === "multiSelect"
                             ? selectedValues.includes(option.value)
                               ? selectedValues.filter((v) => v !== option.value)
@@ -774,14 +774,14 @@ function onFilterInputRender<TData>({
                       }}
                     >
                       {option.icon && <option.icon />}
-                      <span className="truncate">{option.label}</span>
+                      <span className='truncate'>{option.label}</span>
                       {filter.variant === "multiSelect" && (
                         <Check
                           className={cn(
                             "ml-auto",
                             selectedValues.includes(option.value)
                               ? "opacity-100"
-                              : "opacity-0",
+                              : "opacity-0"
                           )}
                         />
                       )}
@@ -806,11 +806,11 @@ function onFilterInputRender<TData>({
       const displayValue =
         filter.operator === "isBetween" && dateValue.length === 2
           ? `${formatDate(new Date(Number(dateValue[0])))} - ${formatDate(
-              new Date(Number(dateValue[1])),
+              new Date(Number(dateValue[1]))
             )}`
           : dateValue[0]
-            ? formatDate(new Date(Number(dateValue[0])))
-            : "Pick date...";
+          ? formatDate(new Date(Number(dateValue[0])))
+          : "Pick date...";
 
       return (
         <Popover open={showValueSelector} onOpenChange={setShowValueSelector}>
@@ -818,25 +818,25 @@ function onFilterInputRender<TData>({
             <Button
               id={inputId}
               aria-controls={inputListboxId}
-              variant="ghost"
-              size="sm"
+              variant='ghost'
+              size='sm'
               className={cn(
                 "h-full rounded-none border px-1.5 font-normal dark:bg-input/30",
-                !filter.value && "text-muted-foreground",
+                !filter.value && "text-muted-foreground"
               )}
             >
-              <CalendarIcon className="size-3.5" />
-              <span className="truncate">{displayValue}</span>
+              <CalendarIcon className='size-3.5' />
+              <span className='truncate'>{displayValue}</span>
             </Button>
           </PopoverTrigger>
           <PopoverContent
             id={inputListboxId}
-            align="start"
-            className="w-auto origin-[var(--radix-popover-content-transform-origin)] p-0"
+            align='start'
+            className='w-auto origin-[var(--radix-popover-content-transform-origin)] p-0'
           >
             {filter.operator === "isBetween" ? (
               <Calendar
-                mode="range"
+                mode='range'
                 initialFocus
                 selected={
                   dateValue.length === 2
@@ -862,7 +862,7 @@ function onFilterInputRender<TData>({
               />
             ) : (
               <Calendar
-                mode="single"
+                mode='single'
                 initialFocus
                 selected={
                   dateValue[0] ? new Date(Number(dateValue[0])) : undefined
