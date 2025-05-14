@@ -38,7 +38,7 @@ import { getErrorMessage } from "@/lib/handle-error";
 import { updateTask } from "../_lib/actions";
 import { getPriorityIcon, getStatusIcon } from "../_lib/utils";
 
-interface GetTasksTableColumnsProps {
+export interface GetTasksTableColumnsProps {
   statusCounts: Record<Task["status"], number>;
   priorityCounts: Record<Task["priority"], number>;
   estimatedHoursRange: { min: number; max: number };

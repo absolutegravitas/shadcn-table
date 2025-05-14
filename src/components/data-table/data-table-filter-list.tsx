@@ -338,7 +338,8 @@ interface DataTableFilterItemProps<TData> {
   onFilterRemove: (filterId: string) => void;
 }
 
-function DataTableFilterItem<TData>({
+// Define the actual component function
+function _DataTableFilterItem<TData>({
   filter,
   index,
   filterItemId,
@@ -557,6 +558,11 @@ function DataTableFilterItem<TData>({
     </SortableItem>
   );
 }
+
+// Memoize it and explicitly type the resulting component
+const DataTableFilterItem = React.memo(_DataTableFilterItem) as <TData>(
+  props: DataTableFilterItemProps<TData>
+) => React.ReactElement | null;
 
 function onFilterInputRender<TData>({
   filter,

@@ -5,10 +5,11 @@
 import { redis } from "@/lib/redis"; // Import Upstash Redis client
 // import { db } from "@/db/indexeddb"; // No longer needed
 import type { Task } from "@/db/indexeddb"; // Keep Task type
+import { faker } from "@faker-js/faker"; // Import faker
 import { customAlphabet } from "nanoid";
 import { unstable_noStore } from "next/cache";
-import fs from "node:fs/promises"; // For reading the JSON file
-import path from "node:path"; // For constructing the file path
+// import fs from "node:fs/promises"; // No longer needed for seeding
+// import path from "node:path"; // No longer needed for seeding
 
 import { getErrorMessage } from "@/lib/handle-error";
 
@@ -37,11 +38,8 @@ export async function createTask(input: CreateTaskSchema) {
     );
     await redis.set(taskKey, JSON.stringify(newTask));
 
-    // Optionally, add the new task's ID to a Redis Set for easy retrieval of all task IDs
-    // await redis.sadd("task_ids", newTask.id);
-
     return {
-      data: newTask, // Return the created task
+      data: newTask,
       error: null,
     };
   } catch (err) {
@@ -65,11 +63,15 @@ export async function updateTask(input: UpdateTaskSchema & { id: string }) {
       return { data: null, error: "Task not found" };
     }
 
-    const existingTask = JSON.parse(existingTaskJSON as string) as Task; // Assert type after parsing
+    // Assuming existingTaskJSON is an object because Upstash client auto-parses
+    const existingTask = existingTaskJSON as Task;
+    // Ensure dates are Date objects if they were stringified
+    existingTask.createdAt = new Date(existingTask.createdAt);
+    existingTask.updatedAt = new Date(existingTask.updatedAt);
+
     let hasActualChanges = false;
     const updatedTask: Task = { ...existingTask };
 
-    // Apply updates
     const updatableKeys: (keyof UpdateTaskSchema)[] = [
       "title",
       "label",
@@ -94,10 +96,7 @@ export async function updateTask(input: UpdateTaskSchema & { id: string }) {
       return { data: updatedTask, error: null };
     }
 
-    // No actual changes other than potentially updatedAt, return existing task or null
-    // Depending on desired behavior, you might still update `updatedAt` if no other fields changed.
-    // For now, if no data fields changed, we return the existing task data without a new DB write.
-    return { data: existingTask, error: null }; // Or return null data if no change is not an "update"
+    return { data: existingTask, error: null };
   } catch (err) {
     return {
       data: null,
@@ -116,20 +115,22 @@ export async function updateTasks(input: {
   try {
     const taskKeys = input.ids.map((id) => `task:${id}`);
     if (taskKeys.length === 0) {
-      return { data: [], error: null }; // No tasks to update
+      return { data: [], error: null };
     }
 
-    // mget returns (string | null)[] for existing/non-existing keys
-    const existingTaskStrings = await redis.mget<string[]>(...taskKeys);
+    const existingTasksObjects = await redis.mget<any[]>(...taskKeys);
     const updatedTasks: Task[] = [];
     const pipeline = redis.pipeline();
     let overallChangesMade = false;
 
-    existingTaskStrings.forEach((taskString, index) => {
+    existingTasksObjects.forEach((taskObject, index) => {
       const currentTaskKey = taskKeys[index];
-      if (taskString && currentTaskKey) {
-        // Task string exists and key is valid
-        const task = JSON.parse(taskString) as Task; // Parse the string to Task
+      if (taskObject && currentTaskKey) {
+        const task = {
+          ...taskObject,
+          createdAt: new Date(taskObject.createdAt),
+          updatedAt: new Date(taskObject.updatedAt),
+        } as Task;
         const updatedTask: Task = { ...task };
         let taskSpecificChangesMade = false;
 
@@ -151,15 +152,12 @@ export async function updateTasks(input: {
 
         if (taskSpecificChangesMade) {
           updatedTask.updatedAt = new Date();
-          pipeline.set(currentTaskKey, JSON.stringify(updatedTask)); // Use checked currentTaskKey
+          pipeline.set(currentTaskKey, JSON.stringify(updatedTask));
           updatedTasks.push(updatedTask);
           overallChangesMade = true;
         } else {
-          updatedTasks.push(task); // No changes for this specific task, push original parsed task
+          updatedTasks.push(task);
         }
-      } else {
-        // Task with id input.ids[index] not found, or key was undefined
-        // Optionally, log this or handle as an error for specific ID
       }
     });
 
@@ -168,7 +166,7 @@ export async function updateTasks(input: {
     }
 
     return {
-      data: updatedTasks, // Return all processed tasks (updated or not)
+      data: updatedTasks,
       error: null,
     };
   } catch (err) {
@@ -187,16 +185,12 @@ export async function deleteTask(input: { id: string }) {
     console.log(`[deleteTask] Operating on Redis key: ${taskKey}`);
     const result = await redis.del(taskKey);
 
-    // Optionally, remove the task's ID from a Redis Set if you're maintaining an index
-    // await redis.srem("task_ids", input.id);
-
     if (result === 0) {
-      // Task key did not exist
       return { data: null, error: "Task not found or already deleted." };
     }
 
     return {
-      data: { id: input.id }, // Indicate success by returning the ID of the deleted task
+      data: { id: input.id },
       error: null,
     };
   } catch (err) {
@@ -216,13 +210,8 @@ export async function deleteTasks(input: { ids: string[] }) {
     const taskKeysToDelete = input.ids.map((id) => `task:${id}`);
     const count = await redis.del(...taskKeysToDelete);
 
-    // Optionally, remove IDs from a "task_ids" set if used
-    // if (count > 0) {
-    //   await redis.srem("task_ids", ...input.ids.filter((id, index) => taskKeysToDelete.includes(`task:${id}`)));
-    // }
-
     return {
-      data: { count }, // Return the number of tasks deleted
+      data: { count },
       error: null,
     };
   } catch (err) {
@@ -233,125 +222,166 @@ export async function deleteTasks(input: { ids: string[] }) {
   }
 }
 
+// Fetches ALL tasks from Redis. Filtering/sorting/pagination will be client-side for PWA.
 export async function getAllTasksFromKV(): Promise<{
   data: Task[] | null;
   error: string | null;
 }> {
   unstable_noStore();
-  try {
-    console.log(
-      "[getAllTasksFromKV] Starting to fetch all task keys from Redis."
-    );
-    const taskKeys: string[] = [];
-    let cursor = "0"; // SCAN cursor is a string, starts at "0"
-    do {
-      // redis.scan returns [string, string[]]
-      const [nextCursorString, keys] = await redis.scan(cursor, {
-        match: "task:*",
-      });
-      taskKeys.push(...keys);
-      cursor = nextCursorString;
-    } while (cursor !== "0"); // Loop until cursor is "0"
+  console.log(
+    "[getAllTasksFromKV - PWA Optimized] Attempting to fetch all tasks."
+  );
 
-    console.log(
-      `[getAllTasksFromKV] Found ${
-        taskKeys.length
-      } keys matching 'task:*'. Keys: ${taskKeys.join(", ")}`
-    );
+  try {
+    const taskKeys: string[] = [];
+    let cursor = "0";
+    do {
+      const [nextCursor, keys] = await redis.scan(cursor, { match: "task:*" });
+      taskKeys.push(...keys);
+      cursor = nextCursor;
+    } while (cursor !== "0");
+
     if (taskKeys.length === 0) {
-      console.log("[getAllTasksFromKV] No task keys found in Redis.");
+      console.log("[getAllTasksFromKV - PWA Optimized] No task keys found.");
       return { data: [], error: null };
     }
-
-    const taskJSONStrings = await redis.mget<string[]>(...taskKeys);
     console.log(
-      `[getAllTasksFromKV] Retrieved ${
-        taskJSONStrings.filter(Boolean).length
-      } task JSON strings from Redis.`
+      `[getAllTasksFromKV - PWA Optimized] Found ${taskKeys.length} keys.`
     );
-    const tasks = taskJSONStrings
-      .map((json) => (json ? (JSON.parse(json) as Task) : null))
-      .filter((task): task is Task => task !== null);
 
-    return { data: tasks, error: null };
-  } catch (err) {
-    return { data: null, error: getErrorMessage(err) };
-  }
-}
+    const taskObjectsOrNulls = await redis.mget<any[]>(...taskKeys);
 
-export async function seedTasksToRedis(): Promise<{
-  count: number;
-  error: string | null;
-}> {
-  unstable_noStore();
-  console.log(
-    "[seedTasksToRedis] Attempting to seed tasks from JSON to Redis..."
-  );
-  try {
-    const filePath = path.join(process.cwd(), "public", "mock-tasks.json");
-    const fileContent = await fs.readFile(filePath, "utf-8");
-    const tasks = JSON.parse(fileContent) as Task[];
+    const tasks: Task[] = [];
+    for (let i = 0; i < taskObjectsOrNulls.length; i++) {
+      const taskObject = taskObjectsOrNulls[i];
+      const currentKey = taskKeys[i] || `unknown_key_at_index_${i}`;
 
-    if (!Array.isArray(tasks)) {
-      console.error(
-        "[seedTasksToRedis] mock-tasks.json did not contain an array."
-      );
-      return { count: 0, error: "Invalid format in mock-tasks.json." };
-    }
+      if (taskObject === null || taskObject === undefined) {
+        console.warn(
+          `[getAllTasksFromKV - PWA Optimized] Null or undefined item found for key ${currentKey}. Skipping.`
+        );
+        continue;
+      }
 
-    if (tasks.length === 0) {
-      console.log(
-        "[seedTasksToRedis] mock-tasks.json is empty. No tasks to seed."
-      );
-      return { count: 0, error: null };
-    }
-
-    const pipeline = redis.pipeline();
-    let validTasksProcessed = 0;
-
-    for (const task of tasks) {
-      if (task && task.id) {
-        // Basic validation
-        const taskKey = `task:${task.id}`;
-        // Ensure all task fields are present or have defaults if necessary
-        const taskToStore: Task = {
-          id: task.id,
-          code: task.code || task.id, // Ensure code exists
-          title: task.title,
-          status: task.status || "todo", // Ensure status exists
-          label: task.label || "bug", // Ensure label exists
-          priority: task.priority || "low", // Ensure priority exists
-          estimatedHours: task.estimatedHours || 0,
-          archived: task.archived || false,
-          createdAt: task.createdAt ? new Date(task.createdAt) : new Date(),
-          updatedAt: task.updatedAt ? new Date(task.updatedAt) : new Date(),
-        };
-        pipeline.set(taskKey, JSON.stringify(taskToStore));
-        validTasksProcessed++;
+      if (typeof taskObject === "object" && taskObject.id && taskObject.title) {
+        const validatedTask = {
+          ...taskObject,
+          createdAt: new Date(taskObject.createdAt),
+          updatedAt: new Date(taskObject.updatedAt),
+        } as Task;
+        tasks.push(validatedTask);
       } else {
         console.warn(
-          "[seedTasksToRedis] Skipping task due to missing id:",
-          task
+          `[getAllTasksFromKV - PWA Optimized] Item for key ${currentKey} is not a valid Task object or is missing essential fields. Value:`,
+          taskObject
         );
       }
     }
 
-    if (validTasksProcessed > 0) {
-      await pipeline.exec();
+    console.log(
+      `[getAllTasksFromKV - PWA Optimized] Successfully processed ${tasks.length} tasks.`
+    );
+    return { data: tasks, error: null };
+  } catch (err: any) {
+    console.error(
+      "[getAllTasksFromKV - PWA Optimized] ERROR CAUGHT! Raw Original error object:",
+      err,
+      err.stack
+    );
+    return { data: null, error: getErrorMessage(err) };
+  }
+}
+
+// Helper function to generate a random task based on project's Task interface
+function generateRandomTaskForProject(): Task {
+  const taskId = `TASK-${customAlphabet("0123456789", 4)()}`;
+  const statuses: Task["status"][] = [
+    "todo",
+    "in-progress",
+    "done",
+    "canceled",
+  ];
+  const labels: Task["label"][] = [
+    "bug",
+    "feature",
+    "documentation",
+    "enhancement",
+  ];
+  const priorities: Task["priority"][] = ["low", "medium", "high"];
+
+  return {
+    id: taskId,
+    code: taskId, // Using the same as id, consistent with createTask
+    title: faker.hacker
+      .phrase()
+      .replace(/^./, (letter) => letter.toUpperCase()),
+    estimatedHours: faker.number.int({ min: 0, max: 24 }), // Can be 0
+    status: faker.helpers.arrayElement(statuses),
+    label: faker.helpers.arrayElement(labels),
+    priority: faker.helpers.arrayElement(priorities),
+    archived: faker.datatype.boolean({ probability: 0.15 }),
+    createdAt: faker.date.recent({ days: 30 }),
+    updatedAt: faker.date.recent({ days: 10 }),
+  };
+}
+
+export async function seedTasksToRedis(input?: { count?: number }): Promise<{
+  count: number;
+  error: string | null;
+}> {
+  unstable_noStore();
+  const taskCount = input?.count ?? 50;
+  console.log(
+    `[seedTasksToRedis] Attempting to seed ${taskCount} new tasks to Redis...`
+  );
+
+  try {
+    console.log(
+      "[seedTasksToRedis] Deleting existing task:* keys from Redis..."
+    );
+    let cursor = "0";
+    const existingTaskKeys: string[] = [];
+    do {
+      const [nextCursor, keys] = await redis.scan(cursor, { match: "task:*" });
+      existingTaskKeys.push(...keys);
+      cursor = nextCursor;
+    } while (cursor !== "0");
+
+    if (existingTaskKeys.length > 0) {
+      await redis.del(...existingTaskKeys);
       console.log(
-        `[seedTasksToRedis] Successfully seeded ${validTasksProcessed} tasks to Redis.`
+        `[seedTasksToRedis] Deleted ${existingTaskKeys.length} existing task keys.`
       );
-      return { count: validTasksProcessed, error: null };
     } else {
-      console.log("[seedTasksToRedis] No valid tasks found in JSON to seed.");
-      return { count: 0, error: "No valid tasks in JSON to seed." };
+      console.log(
+        "[seedTasksToRedis] No existing task:* keys found to delete."
+      );
     }
+
+    const newTasks: Task[] = [];
+    for (let i = 0; i < taskCount; i++) {
+      newTasks.push(generateRandomTaskForProject());
+    }
+
+    if (newTasks.length === 0) {
+      console.log("[seedTasksToRedis] No tasks generated to seed.");
+      return { count: 0, error: null };
+    }
+
+    const pipeline = redis.pipeline();
+    for (const task of newTasks) {
+      const taskKey = `task:${task.id}`;
+      pipeline.set(taskKey, JSON.stringify(task));
+    }
+
+    await pipeline.exec();
+    console.log(
+      `[seedTasksToRedis] Successfully seeded ${newTasks.length} new tasks to Redis.`
+    );
+    return { count: newTasks.length, error: null };
   } catch (err) {
     const errorMessage = getErrorMessage(err);
     console.error("[seedTasksToRedis] Error seeding tasks:", errorMessage);
-    if (errorMessage.includes("ENOENT")) {
-      return { count: 0, error: "mock-tasks.json not found." };
-    }
     return { count: 0, error: errorMessage };
   }
 }
