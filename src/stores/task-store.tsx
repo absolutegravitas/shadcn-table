@@ -1,10 +1,9 @@
 "use client";
 
 import * as React from "react";
-import isEqual from "lodash.isequal"; // Import isEqual
 import type { Task } from "@/db/indexeddb";
-import { getAllTasksFromKV } from "@/app/_lib/actions"; // Server action to get all tasks
-import { db } from "@/db/indexeddb"; // Dexie instance for offline persistence
+import { getAllTasksFromKV } from "@/app/_lib/actions";
+import { db } from "@/db/indexeddb";
 
 interface TasksContextType {
   allTasks: Task[];
@@ -12,7 +11,6 @@ interface TasksContextType {
   errorLoadingAllTasks: string | null;
   fetchAllTasksFromServer: () => Promise<void>;
   getTaskById: (id: string) => Task | undefined;
-  // Add update/delete functions here if needed to sync with server & update local state
 }
 
 const TasksContext = React.createContext<TasksContextType | undefined>(
@@ -25,97 +23,141 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
   const [errorLoadingAllTasks, setErrorLoadingAllTasks] = React.useState<
     string | null
   >(null);
+  const [currentTasksSignature, setCurrentTasksSignature] = React.useState("");
+
+  const workerRef = React.useRef<Worker | null>(null);
+
+  // Initialize worker
+  React.useEffect(() => {
+    // Ensure worker is only created in the browser environment
+    if (typeof window !== "undefined") {
+      workerRef.current = new Worker(
+        new URL("../workers/task-processor.worker.ts", import.meta.url)
+      );
+
+      workerRef.current.onmessage = (event: MessageEvent<string>) => {
+        // This listener is generic; specific logic will decide if this signature
+        // is for currentTasks or fetchedTasks based on context when worker was called.
+        // For now, we assume it's for currentTasks if called from the allTasks effect.
+        // A more robust solution might involve message IDs or types if contention occurs.
+        setCurrentTasksSignature(event.data);
+      };
+
+      workerRef.current.onerror = (error) => {
+        console.error("[TasksProvider] Worker error:", error);
+        // Handle worker errors, perhaps by falling back to main thread processing
+        // or setting an error state.
+      };
+    }
+    return () => {
+      workerRef.current?.terminate();
+    };
+  }, []);
+
+  // Effect to update currentTasksSignature when allTasks changes, using the worker
+  React.useEffect(() => {
+    if (workerRef.current && allTasks.length > 0) {
+      // console.log("[TasksProvider] Posting current tasks to worker for signature update.");
+      workerRef.current.postMessage(allTasks);
+    } else if (allTasks.length === 0) {
+      // If allTasks is empty, directly set signature for an empty array
+      // This avoids sending an empty array to the worker unnecessarily
+      // and ensures signature is correct for initial empty state.
+      const emptyTasksSignature = JSON.stringify([]); // Assuming normalize of [] is []
+      setCurrentTasksSignature(emptyTasksSignature);
+    }
+  }, [allTasks]);
 
   const fetchAllTasksFromServer = React.useCallback(async () => {
     setIsLoadingAllTasks(true);
     setErrorLoadingAllTasks(null);
     console.log("[TasksProvider] Fetching all tasks from server...");
+
     try {
       const result = await getAllTasksFromKV();
       if (result.error) {
-        console.error(
-          "[TasksProvider] Error fetching all tasks:",
-          result.error
-        );
+        console.error("[TasksProvider] Error fetching tasks:", result.error);
         setErrorLoadingAllTasks(result.error);
-        // Attempt to load from IndexedDB as a fallback if server fetch fails
         const offlineTasks = await db.tasks.toArray();
         if (offlineTasks.length > 0) {
-          console.log(
-            "[TasksProvider] Loaded tasks from IndexedDB as fallback.",
-            offlineTasks.length
-          );
           setAllTasks(offlineTasks);
         } else {
           setAllTasks([]);
         }
       } else if (result.data) {
         console.log(
-          `[TasksProvider] Successfully fetched ${result.data.length} tasks from server.`
+          `[TasksProvider] Successfully fetched ${result.data.length} tasks.`
         );
+        const fetchedDataSafe = result.data ?? [];
 
-        const normalizeTasksForComparison = (tasks: Task[]) => {
-          // Ensure tasks is an array before trying to map/sort
-          if (!Array.isArray(tasks)) return [];
-          return tasks
-            .map((task) => ({
-              ...task,
-              // Ensure createdAt/updatedAt are valid dates before calling getTime
-              createdAt: task.createdAt
-                ? new Date(task.createdAt).getTime()
-                : 0,
-              updatedAt: task.updatedAt
-                ? new Date(task.updatedAt).getTime()
-                : 0,
-            }))
-            .sort((a, b) => a.id.localeCompare(b.id));
-        };
+        if (workerRef.current) {
+          const worker = workerRef.current; // Capture current worker in a variable for safety within promise
+          // Create a promise to wait for the worker's response
+          const fetchedSignaturePromise = new Promise<string>(
+            (resolve, reject) => {
+              const tempWorkerListener = (event: MessageEvent<string>) => {
+                worker.removeEventListener("message", tempWorkerListener);
+                worker.removeEventListener("error", tempErrorListener); // Also remove error listener
+                resolve(event.data);
+              };
+              const tempErrorListener = (error: ErrorEvent) => {
+                worker.removeEventListener("message", tempWorkerListener);
+                worker.removeEventListener("error", tempErrorListener);
+                reject(error);
+              };
 
-        const currentTasksForComparison = normalizeTasksForComparison(allTasks);
-        const fetchedTasksForComparison = normalizeTasksForComparison(
-          result.data
-        );
-
-        if (!isEqual(currentTasksForComparison, fetchedTasksForComparison)) {
-          console.log(
-            "[TasksProvider] Fetched data is different (after normalization), updating state and IndexedDB."
+              worker.addEventListener("message", tempWorkerListener);
+              worker.addEventListener("error", tempErrorListener);
+              worker.postMessage(fetchedDataSafe);
+            }
           );
-          setAllTasks(result.data); // Set original result.data with Date objects
-          // Persist to IndexedDB for offline access
-          await db.tasks.clear(); // Clear old data
-          await db.tasks.bulkPut(result.data); // Store original result.data
-          console.log("[TasksProvider] Synced all tasks to IndexedDB.");
+
+          try {
+            const fetchedTasksSignature = await fetchedSignaturePromise;
+            if (currentTasksSignature !== fetchedTasksSignature) {
+              console.log(
+                "[TasksProvider] Fetched data signature is different, updating."
+              );
+              setAllTasks(fetchedDataSafe);
+              await db.tasks.clear();
+              await db.tasks.bulkPut(fetchedDataSafe);
+              console.log("[TasksProvider] Synced tasks to IndexedDB.");
+            } else {
+              console.log(
+                "[TasksProvider] Fetched data signature is same, no update."
+              );
+            }
+          } catch (workerError) {
+            console.error(
+              "[TasksProvider] Error getting signature from worker for fetched tasks:",
+              workerError
+            );
+            // Fallback or error handling if worker fails for fetched tasks
+            // For simplicity, could attempt main thread comparison or just log
+          }
         } else {
-          console.log(
-            "[TasksProvider] Fetched data is the same as current state (after normalization), no update needed."
+          // Fallback if worker is not available (should not happen if initialized correctly)
+          console.warn(
+            "[TasksProvider] Worker not available for fetched tasks comparison. Skipping optimized check."
           );
+          // Potentially do a main-thread comparison or just update if this case is critical
         }
       } else {
-        // if result.data is null but there was no error, means KV is empty
-        if (allTasks.length > 0) {
-          // Clear if local state has tasks
-          console.log(
-            "[TasksProvider] KV is empty, clearing local state and IndexedDB."
-          );
+        // KV is empty
+        const emptyTasksSignature = JSON.stringify([]); // Assuming normalize of [] is []
+        if (currentTasksSignature !== emptyTasksSignature) {
+          console.log("[TasksProvider] KV empty, clearing local state.");
           setAllTasks([]);
           await db.tasks.clear();
-          console.log("[TasksProvider] Cleared IndexedDB as KV is empty.");
         } else {
-          console.log(
-            "[TasksProvider] KV is empty, local state already empty."
-          );
+          console.log("[TasksProvider] KV empty, local state already empty.");
         }
       }
     } catch (err) {
-      console.error("[TasksProvider] Critical error fetching all tasks:", err);
+      console.error("[TasksProvider] Critical error in fetchAllTasks:", err);
       setErrorLoadingAllTasks(err instanceof Error ? err.message : String(err));
-      // Attempt to load from IndexedDB as a fallback
       const offlineTasks = await db.tasks.toArray();
       if (offlineTasks.length > 0) {
-        console.log(
-          "[TasksProvider] Loaded tasks from IndexedDB as fallback after critical error.",
-          offlineTasks.length
-        );
         setAllTasks(offlineTasks);
       } else {
         setAllTasks([]);
@@ -123,31 +165,43 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoadingAllTasks(false);
     }
-  }, [allTasks]); // Added allTasks to dependency array for useCallback as it's used in comparison
+  }, [currentTasksSignature]); // currentTasksSignature is a dependency
 
-  // Initial fetch on mount
+  const initialLoadEffectRan = React.useRef(false);
+
   React.useEffect(() => {
-    // Check if tasks are already in IndexedDB (e.g., from previous session, for PWA offline start)
-    const loadInitialData = async () => {
-      console.log(
-        "[TasksProvider] Initializing... attempting to load from IDB first."
-      );
-      const offlineTasks = await db.tasks.toArray();
-      if (offlineTasks.length > 0) {
-        console.log(
-          `[TasksProvider] Found ${offlineTasks.length} tasks in IndexedDB on initial load.`
-        );
-        setAllTasks(offlineTasks);
-        setIsLoadingAllTasks(false); // Assume IDB data is good enough for initial render
-        // Then, try to refresh from server.
-        fetchAllTasksFromServer(); // Refresh in background
-      } else {
-        console.log(
-          "[TasksProvider] No tasks in IndexedDB on initial load, fetching from server."
-        );
-        fetchAllTasksFromServer();
+    if (process.env.NODE_ENV === "development") {
+      if (initialLoadEffectRan.current === true) {
+        return;
       }
+      initialLoadEffectRan.current = true;
+    }
+
+    const loadInitialData = async () => {
+      setIsLoadingAllTasks(true);
+      console.log("[TasksProvider] Initializing... IDB first.");
+      try {
+        const offlineTasks = await db.tasks.toArray();
+        if (offlineTasks.length > 0) {
+          console.log(`[TasksProvider] Found ${offlineTasks.length} in IDB.`);
+          setAllTasks(offlineTasks); // This will trigger worker for signature
+          // Then fetch from server to sync (fetchAllTasksFromServer will use the signature)
+          await fetchAllTasksFromServer();
+        } else {
+          console.log("[TasksProvider] No tasks in IDB, fetching from server.");
+          await fetchAllTasksFromServer();
+        }
+      } catch (idbError) {
+        console.error("[TasksProvider] IDB load error:", idbError);
+        setErrorLoadingAllTasks(
+          idbError instanceof Error ? idbError.message : String(idbError)
+        );
+        console.log("[TasksProvider] Attempting server fetch after IDB error.");
+        await fetchAllTasksFromServer();
+      }
+      // setIsLoadingAllTasks(false) is handled by fetchAllTasksFromServer's finally block
     };
+
     loadInitialData();
   }, [fetchAllTasksFromServer]);
 

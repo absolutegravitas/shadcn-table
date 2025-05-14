@@ -6,7 +6,7 @@ import { Shell } from "@/components/shell";
 
 import { FeatureFlagsProvider } from "./_components/feature-flags-provider";
 import { TasksTable } from "./_components/tasks-table";
-import { TasksProvider } from "@/stores/task-store"; // Import TasksProvider
+// TasksProvider will be moved to layout.tsx
 import { searchParamsCache } from "./_lib/validations";
 
 interface IndexPageProps {
@@ -20,10 +20,9 @@ export default async function IndexPage(props: IndexPageProps) {
   return (
     <Shell className='gap-2'>
       <FeatureFlagsProvider>
-        <TasksProvider>
-          {/* Data fetching is now handled client-side within TasksTable */}
-          <TasksTable searchParams={search} />
-        </TasksProvider>
+        {/* Data fetching is now handled client-side within TasksTable,
+            TasksProvider is now in layout.tsx */}
+        <TasksTable searchParams={search} />
       </FeatureFlagsProvider>
     </Shell>
   );

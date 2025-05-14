@@ -9,6 +9,7 @@ import "@/styles/globals.css";
 import type { Metadata, Viewport } from "next";
 
 import { Toaster } from "@/components/ui/sonner";
+import { TasksProvider } from "@/stores/task-store"; // Import TasksProvider
 import { fontMono, fontSans } from "@/lib/fonts";
 import Script from "next/script";
 
@@ -66,31 +67,28 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: React.PropsWithChildren) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang='en' suppressHydrationWarning>
       <head />
       <body
         className={cn(
           "min-h-screen bg-background font-sans antialiased",
           fontSans.variable,
-          fontMono.variable,
+          fontMono.variable
         )}
       >
-        <Script
-          defer
-          data-site-id={siteConfig.url}
-          src="https://assets.onedollarstats.com/stonks.js"
-        />
         <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
+          attribute='class'
+          defaultTheme='system'
           enableSystem
           disableTransitionOnChange
         >
-          <div className="relative flex min-h-screen flex-col">
-            <SiteHeader />
-            <main className="flex-1">{children}</main>
-          </div>
-          <TailwindIndicator />
+          <TasksProvider>
+            <div className='relative flex min-h-screen flex-col'>
+              <SiteHeader />
+              <main className='flex-1'>{children}</main>
+            </div>
+            <TailwindIndicator />
+          </TasksProvider>
         </ThemeProvider>
         <Toaster />
       </body>
