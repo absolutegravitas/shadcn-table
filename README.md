@@ -1,3 +1,25 @@
+
+use memory mcp and sequential thinking mcp. review @data-table.ts @data-table.ts  @src/components/data-table and associated code components hooks libs etc. and fix the following performance violatiosn thrown in the browser console
+
+these are happening in the context of a fetch it looks like and are slowig down the UI severely.
+
+
+iolation] 'message' handler took <N>ms
+23:16:34.988 scheduler.development.js:14 [Violation] 'message' handler took 173ms
+23:16:36.039 scheduler.development.js:14 [Violation] 'message' handler took 647ms
+23:16:38.185 scheduler.development.js:14 [Violation] 'message' handler took 746ms
+23:16:39.151 scheduler.development.js:14 [Violation] 'message' handler took 790ms
+23:16:50.629 scheduler.development.js:14 [Violation] 'message' handler took 792ms
+23:17:01.793 scheduler.development.js:14 [Violation] 'message' handler took 610ms
+23:17:04.075 scheduler.development.js:14 [Violation] 'message' handler took 762ms
+23:16:35.427 task-store.tsx:182 [TasksProvider] Initializing... IDB first.
+23:16:36.287 task-store.tsx:186 [TasksProvider] Found 50 in IDB.
+23:16:36.288 task-store.tsx:74 [TasksProvider] Fetching all tasks from server...
+23:16:37.374 react-dom-client.development.js:16378 [Violation] 'success' handler took 1081ms
+23:16:38.267 task-store.tsx:88 [TasksProvider] Successfully fetched 50 tasks.
+23:16:38.278 task-store.tsx:118 [TasksProvider] Fetched data signature is different, updating.
+23:16:38.293 actions.ts:226 Fetch finished loading: POST "http://localhost:3000/".
+
 # [Shadcn Table](https://tablecn.com)
 
 This is a shadcn table component with server-side sorting, filtering, and pagination. It is bootstrapped with `create-t3-app`.
