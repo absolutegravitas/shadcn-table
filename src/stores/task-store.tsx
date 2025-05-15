@@ -4,6 +4,7 @@ import * as React from "react";
 import type { Task } from "@/db/indexeddb";
 import { getAllTasksFromKV } from "@/app/_lib/actions";
 import { db } from "@/db/indexeddb";
+import debounce from "lodash/debounce";
 
 interface TasksContextType {
   allTasks: Task[];
@@ -55,18 +56,26 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // Effect to update currentTasksSignature when allTasks changes, using the worker
+  const debouncedUpdateSignature = React.useCallback(
+    React.useMemo(
+      () =>
+        debounce((tasks: Task[]) => {
+          if (workerRef.current && tasks.length > 0) {
+            workerRef.current.postMessage(tasks);
+          } else if (tasks.length === 0) {
+            const emptyTasksSignature = JSON.stringify([]);
+            setCurrentTasksSignature(emptyTasksSignature);
+          }
+        }, 100),
+      []
+    ),
+    []
+  );
+
   React.useEffect(() => {
-    if (workerRef.current && allTasks.length > 0) {
-      // console.log("[TasksProvider] Posting current tasks to worker for signature update.");
-      workerRef.current.postMessage(allTasks);
-    } else if (allTasks.length === 0) {
-      // If allTasks is empty, directly set signature for an empty array
-      // This avoids sending an empty array to the worker unnecessarily
-      // and ensures signature is correct for initial empty state.
-      const emptyTasksSignature = JSON.stringify([]); // Assuming normalize of [] is []
-      setCurrentTasksSignature(emptyTasksSignature);
-    }
-  }, [allTasks]);
+    debouncedUpdateSignature(allTasks);
+    return () => debouncedUpdateSignature.cancel();
+  }, [allTasks, debouncedUpdateSignature]);
 
   const fetchAllTasksFromServer = React.useCallback(async () => {
     setIsLoadingAllTasks(true);
@@ -179,25 +188,34 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
 
     const loadInitialData = async () => {
       setIsLoadingAllTasks(true);
-      console.log("[TasksProvider] Initializing... IDB first.");
       try {
-        const offlineTasks = await db.tasks.toArray();
+        const [offlineTasks, serverResult] = await Promise.all([
+          db.tasks.toArray(),
+          getAllTasksFromKV()
+        ]);
+
         if (offlineTasks.length > 0) {
-          console.log(`[TasksProvider] Found ${offlineTasks.length} in IDB.`);
-          setAllTasks(offlineTasks); // This will trigger worker for signature
-          // Then fetch from server to sync (fetchAllTasksFromServer will use the signature)
-          await fetchAllTasksFromServer();
-        } else {
-          console.log("[TasksProvider] No tasks in IDB, fetching from server.");
-          await fetchAllTasksFromServer();
+          setAllTasks(offlineTasks);
         }
-      } catch (idbError) {
-        console.error("[TasksProvider] IDB load error:", idbError);
+
+        if (serverResult.error) {
+          setErrorLoadingAllTasks(serverResult.error);
+          if (!offlineTasks.length) setAllTasks([]);
+        } else if (serverResult.data) {
+          const fetchedDataSafe = serverResult.data;
+          setAllTasks(fetchedDataSafe);
+          await db.tasks.clear();
+          await db.tasks.bulkPut(fetchedDataSafe);
+        } else {
+          setAllTasks([]);
+          await db.tasks.clear();
+        }
+      } catch (error) {
+        console.error("[TasksProvider] Error:", error);
         setErrorLoadingAllTasks(
-          idbError instanceof Error ? idbError.message : String(idbError)
+          error instanceof Error ? error.message : String(error)
         );
-        console.log("[TasksProvider] Attempting server fetch after IDB error.");
-        await fetchAllTasksFromServer();
+        setAllTasks([]);
       }
       // setIsLoadingAllTasks(false) is handled by fetchAllTasksFromServer's finally block
     };

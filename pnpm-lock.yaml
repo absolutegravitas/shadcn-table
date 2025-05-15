@@ -68,6 +68,9 @@ importers:
       '@tanstack/react-table':
         specifier: ^8.21.3
         version: 8.21.3(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      '@types/lodash':
+        specifier: ^4.17.16
+        version: 4.17.16
       '@upstash/redis':
         specifier: ^1.34.9
         version: 1.34.9
@@ -98,6 +101,9 @@ importers:
       geist:
         specifier: ^1.3.1
         version: 1.3.1(next@15.3.1(@babel/core@7.26.10)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))
+      lodash:
+        specifier: ^4.17.21
+        version: 4.17.21
       lodash.isequal:
         specifier: ^4.5.0
         version: 4.5.0
@@ -2222,6 +2228,9 @@ packages:
   lodash.isequal@4.5.0:
     resolution: {integrity: sha512-pDo3lu8Jhfjqls6GkMgpahsF9kCyayhgykjyLMNFTKWrpVdAQtYyB4muAMWozBB4ig/dtWAmsMxLEI8wuz+DYQ==}
     deprecated: This package is deprecated. Use require('node:util').isDeepStrictEqual instead.
+
+  lodash@4.17.21:
+    resolution: {integrity: sha512-v2kDEe57lecTulaDIuNTPy3Ry4gLGJ6Z1O3vE1krgXZNrsQ+LFTGHVxVjcXPs17LhbZVGedAJv8XZ1tvj5FvSg==}
 
   log-symbols@5.1.0:
     resolution: {integrity: sha512-l0x2DvrW294C9uDCoQe1VSU4gf529FkSZ6leBl4TiqZH/e+0R7hSfHQBNut2mNygDgHwvYHfFLn6Oxb3VWj2rA==}
@@ -4619,6 +4628,8 @@ snapshots:
   lines-and-columns@1.2.4: {}
 
   lodash.isequal@4.5.0: {}
+
+  lodash@4.17.21: {}
 
   log-symbols@5.1.0:
     dependencies:
