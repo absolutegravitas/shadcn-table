@@ -229,77 +229,30 @@ export async function getAllTasksFromKV(): Promise<{
   console.log("[getAllTasksFromKV] Attempting to fetch all tasks...");
 
   try {
-    // First verify Redis connection
-    try {
-      await redis.ping();
-    } catch (connErr) {
-      console.error("[getAllTasksFromKV] Redis connection error:", connErr);
-      throw new Error(
-        "Failed to connect to Redis. Please check your connection and try again."
-      );
-    }
-
-    // Scan for all task keys
-    const taskKeys: string[] = [];
-    let cursor = "0";
-
-    try {
-      do {
-        const [nextCursor, keys] = await redis.scan(cursor, {
-          match: "task:*",
-        });
-        taskKeys.push(...keys);
-        cursor = nextCursor;
-      } while (cursor !== "0");
-    } catch (scanErr) {
-      console.error("[getAllTasksFromKV] Error scanning keys:", scanErr);
-      throw new Error("Failed to retrieve task keys from Redis.");
-    }
-
-    if (taskKeys.length === 0) {
-      console.log("[getAllTasksFromKV] No tasks found.");
+    // Simple direct KEYS operation is fine for small datasets
+    const keys = await redis.keys("task:*");
+    if (keys.length === 0) {
+      console.log("[getAllTasksFromKV] No tasks found");
       return { data: [], error: null };
     }
 
     console.log(
-      `[getAllTasksFromKV] Found ${taskKeys.length} tasks. Fetching data...`
+      `[getAllTasksFromKV] Found ${keys.length} tasks. Fetching data...`
     );
+    const values = await redis.mget(...keys);
+    const tasks: any[] | Task[] = values
+      .filter((v): v is NonNullable<typeof v> => v !== null)
+      .map((v) => (typeof v === "string" ? JSON.parse(v) : v));
 
-    // Batch fetch tasks
-    try {
-      const tasks = await redis.mget<Task[]>(...taskKeys);
-
-      if (!tasks || !Array.isArray(tasks)) {
-        console.error(
-          "[getAllTasksFromKV] Invalid data format received:",
-          tasks
-        );
-        throw new Error("Received invalid data format from Redis.");
-      }
-
-      const validTasks = tasks
-        .filter((task): task is Task => task !== null)
-        .map((task) => {
-          if (typeof task === "string") {
-            try {
-              return JSON.parse(task);
-            } catch (e) {
-              console.warn("[getAllTasksFromKV] Failed to parse task:", task);
-              return null;
-            }
-          }
-          return task;
-        })
-        .filter((task): task is Task => task !== null);
-
-      console.log(
-        `[getAllTasksFromKV] Successfully fetched ${validTasks.length} tasks.`
-      );
-      return { data: validTasks, error: null };
-    } catch (fetchErr) {
-      console.error("[getAllTasksFromKV] Error fetching tasks:", fetchErr);
-      throw new Error("Failed to retrieve task data from Redis.");
+    if (tasks.length === 0) {
+      console.log("[getAllTasksFromKV] No tasks found");
+      return { data: [], error: null };
     }
+
+    console.log(
+      `[getAllTasksFromKV] Successfully fetched ${tasks.length} tasks`
+    );
+    return { data: tasks, error: null };
   } catch (err) {
     const errorMessage = getErrorMessage(err);
     console.error("[getAllTasksFromKV] Fatal error:", errorMessage);
