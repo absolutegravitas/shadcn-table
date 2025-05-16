@@ -1,7 +1,5 @@
 "use server";
 
-"use server";
-
 import { redis } from "@/lib/redis"; // Import Upstash Redis client
 // import { db } from "@/db/indexeddb"; // No longer needed
 import type { Task } from "@/db/indexeddb"; // Keep Task type
@@ -228,67 +226,84 @@ export async function getAllTasksFromKV(): Promise<{
   error: string | null;
 }> {
   unstable_noStore();
-  console.log(
-    "[getAllTasksFromKV - PWA Optimized] Attempting to fetch all tasks."
-  );
+  console.log("[getAllTasksFromKV] Attempting to fetch all tasks...");
 
   try {
+    // First verify Redis connection
+    try {
+      await redis.ping();
+    } catch (connErr) {
+      console.error("[getAllTasksFromKV] Redis connection error:", connErr);
+      throw new Error(
+        "Failed to connect to Redis. Please check your connection and try again."
+      );
+    }
+
+    // Scan for all task keys
     const taskKeys: string[] = [];
     let cursor = "0";
-    do {
-      const [nextCursor, keys] = await redis.scan(cursor, { match: "task:*" });
-      taskKeys.push(...keys);
-      cursor = nextCursor;
-    } while (cursor !== "0");
+
+    try {
+      do {
+        const [nextCursor, keys] = await redis.scan(cursor, {
+          match: "task:*",
+        });
+        taskKeys.push(...keys);
+        cursor = nextCursor;
+      } while (cursor !== "0");
+    } catch (scanErr) {
+      console.error("[getAllTasksFromKV] Error scanning keys:", scanErr);
+      throw new Error("Failed to retrieve task keys from Redis.");
+    }
 
     if (taskKeys.length === 0) {
-      console.log("[getAllTasksFromKV - PWA Optimized] No task keys found.");
+      console.log("[getAllTasksFromKV] No tasks found.");
       return { data: [], error: null };
     }
+
     console.log(
-      `[getAllTasksFromKV - PWA Optimized] Found ${taskKeys.length} keys.`
+      `[getAllTasksFromKV] Found ${taskKeys.length} tasks. Fetching data...`
     );
 
-    const taskObjectsOrNulls = await redis.mget<any[]>(...taskKeys);
+    // Batch fetch tasks
+    try {
+      const tasks = await redis.mget<Task[]>(...taskKeys);
 
-    const tasks: Task[] = [];
-    for (let i = 0; i < taskObjectsOrNulls.length; i++) {
-      const taskObject = taskObjectsOrNulls[i];
-      const currentKey = taskKeys[i] || `unknown_key_at_index_${i}`;
-
-      if (taskObject === null || taskObject === undefined) {
-        console.warn(
-          `[getAllTasksFromKV - PWA Optimized] Null or undefined item found for key ${currentKey}. Skipping.`
+      if (!tasks || !Array.isArray(tasks)) {
+        console.error(
+          "[getAllTasksFromKV] Invalid data format received:",
+          tasks
         );
-        continue;
+        throw new Error("Received invalid data format from Redis.");
       }
 
-      if (typeof taskObject === "object" && taskObject.id && taskObject.title) {
-        const validatedTask = {
-          ...taskObject,
-          createdAt: new Date(taskObject.createdAt),
-          updatedAt: new Date(taskObject.updatedAt),
-        } as Task;
-        tasks.push(validatedTask);
-      } else {
-        console.warn(
-          `[getAllTasksFromKV - PWA Optimized] Item for key ${currentKey} is not a valid Task object or is missing essential fields. Value:`,
-          taskObject
-        );
-      }
+      const validTasks = tasks
+        .filter((task): task is Task => task !== null)
+        .map((task) => {
+          if (typeof task === "string") {
+            try {
+              return JSON.parse(task);
+            } catch (e) {
+              console.warn("[getAllTasksFromKV] Failed to parse task:", task);
+              return null;
+            }
+          }
+          return task;
+        })
+        .filter((task): task is Task => task !== null);
+
+      console.log(
+        `[getAllTasksFromKV] Successfully fetched ${validTasks.length} tasks.`
+      );
+      return { data: validTasks, error: null };
+    } catch (fetchErr) {
+      console.error("[getAllTasksFromKV] Error fetching tasks:", fetchErr);
+      throw new Error("Failed to retrieve task data from Redis.");
     }
-
-    console.log(
-      `[getAllTasksFromKV - PWA Optimized] Successfully processed ${tasks.length} tasks.`
-    );
-    return { data: tasks, error: null };
-  } catch (err: any) {
-    console.error(
-      "[getAllTasksFromKV - PWA Optimized] ERROR CAUGHT! Raw Original error object:",
-      err,
-      err.stack
-    );
-    return { data: null, error: getErrorMessage(err) };
+  } catch (err) {
+    const errorMessage = getErrorMessage(err);
+    console.error("[getAllTasksFromKV] Fatal error:", errorMessage);
+    return { data: null, error: errorMessage };
   }
 }
 

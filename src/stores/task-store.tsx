@@ -4,7 +4,6 @@ import * as React from "react";
 import type { Task } from "@/db/indexeddb";
 import { getAllTasksFromKV } from "@/app/_lib/actions";
 import { db } from "@/db/indexeddb";
-import debounce from "lodash/debounce";
 
 interface TasksContextType {
   allTasks: Task[];
@@ -24,204 +23,87 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
   const [errorLoadingAllTasks, setErrorLoadingAllTasks] = React.useState<
     string | null
   >(null);
-  const [currentTasksSignature, setCurrentTasksSignature] = React.useState("");
-
-  const workerRef = React.useRef<Worker | null>(null);
-
-  // Initialize worker
-  React.useEffect(() => {
-    // Ensure worker is only created in the browser environment
-    if (typeof window !== "undefined") {
-      workerRef.current = new Worker(
-        new URL("../workers/task-processor.worker.ts", import.meta.url)
-      );
-
-      workerRef.current.onmessage = (event: MessageEvent<string>) => {
-        // This listener is generic; specific logic will decide if this signature
-        // is for currentTasks or fetchedTasks based on context when worker was called.
-        // For now, we assume it's for currentTasks if called from the allTasks effect.
-        // A more robust solution might involve message IDs or types if contention occurs.
-        setCurrentTasksSignature(event.data);
-      };
-
-      workerRef.current.onerror = (error) => {
-        console.error("[TasksProvider] Worker error:", error);
-        // Handle worker errors, perhaps by falling back to main thread processing
-        // or setting an error state.
-      };
-    }
-    return () => {
-      workerRef.current?.terminate();
-    };
-  }, []);
-
-  // Effect to update currentTasksSignature when allTasks changes, using the worker
-  const debouncedUpdateSignature = React.useCallback(
-    React.useMemo(
-      () =>
-        debounce((tasks: Task[]) => {
-          if (workerRef.current && tasks.length > 0) {
-            workerRef.current.postMessage(tasks);
-          } else if (tasks.length === 0) {
-            const emptyTasksSignature = JSON.stringify([]);
-            setCurrentTasksSignature(emptyTasksSignature);
-          }
-        }, 100),
-      []
-    ),
-    []
-  );
-
-  React.useEffect(() => {
-    debouncedUpdateSignature(allTasks);
-    return () => debouncedUpdateSignature.cancel();
-  }, [allTasks, debouncedUpdateSignature]);
+  const [retryCount, setRetryCount] = React.useState(0);
+  const MAX_RETRIES = 3;
 
   const fetchAllTasksFromServer = React.useCallback(async () => {
     setIsLoadingAllTasks(true);
     setErrorLoadingAllTasks(null);
-    console.log("[TasksProvider] Fetching all tasks from server...");
 
     try {
+      console.log("[TasksProvider] Fetching all tasks from server...");
       const result = await getAllTasksFromKV();
+
       if (result.error) {
-        console.error("[TasksProvider] Error fetching tasks:", result.error);
+        console.error("[TasksProvider] Server error:", result.error);
         setErrorLoadingAllTasks(result.error);
+
+        // Try to load from IndexedDB as fallback
         const offlineTasks = await db.tasks.toArray();
         if (offlineTasks.length > 0) {
+          console.log("[TasksProvider] Loading from IndexedDB fallback");
           setAllTasks(offlineTasks);
         } else {
           setAllTasks([]);
         }
       } else if (result.data) {
         console.log(
-          `[TasksProvider] Successfully fetched ${result.data.length} tasks.`
+          `[TasksProvider] Successfully fetched ${result.data.length} tasks`
         );
-        const fetchedDataSafe = result.data ?? [];
-
-        if (workerRef.current) {
-          const worker = workerRef.current; // Capture current worker in a variable for safety within promise
-          // Create a promise to wait for the worker's response
-          const fetchedSignaturePromise = new Promise<string>(
-            (resolve, reject) => {
-              const tempWorkerListener = (event: MessageEvent<string>) => {
-                worker.removeEventListener("message", tempWorkerListener);
-                worker.removeEventListener("error", tempErrorListener); // Also remove error listener
-                resolve(event.data);
-              };
-              const tempErrorListener = (error: ErrorEvent) => {
-                worker.removeEventListener("message", tempWorkerListener);
-                worker.removeEventListener("error", tempErrorListener);
-                reject(error);
-              };
-
-              worker.addEventListener("message", tempWorkerListener);
-              worker.addEventListener("error", tempErrorListener);
-              worker.postMessage(fetchedDataSafe);
-            }
-          );
-
-          try {
-            const fetchedTasksSignature = await fetchedSignaturePromise;
-            if (currentTasksSignature !== fetchedTasksSignature) {
-              console.log(
-                "[TasksProvider] Fetched data signature is different, updating."
-              );
-              setAllTasks(fetchedDataSafe);
-              await db.tasks.clear();
-              await db.tasks.bulkPut(fetchedDataSafe);
-              console.log("[TasksProvider] Synced tasks to IndexedDB.");
-            } else {
-              console.log(
-                "[TasksProvider] Fetched data signature is same, no update."
-              );
-            }
-          } catch (workerError) {
-            console.error(
-              "[TasksProvider] Error getting signature from worker for fetched tasks:",
-              workerError
-            );
-            // Fallback or error handling if worker fails for fetched tasks
-            // For simplicity, could attempt main thread comparison or just log
-          }
-        } else {
-          // Fallback if worker is not available (should not happen if initialized correctly)
-          console.warn(
-            "[TasksProvider] Worker not available for fetched tasks comparison. Skipping optimized check."
-          );
-          // Potentially do a main-thread comparison or just update if this case is critical
-        }
-      } else {
-        // KV is empty
-        const emptyTasksSignature = JSON.stringify([]); // Assuming normalize of [] is []
-        if (currentTasksSignature !== emptyTasksSignature) {
-          console.log("[TasksProvider] KV empty, clearing local state.");
-          setAllTasks([]);
-          await db.tasks.clear();
-        } else {
-          console.log("[TasksProvider] KV empty, local state already empty.");
-        }
+        setAllTasks(result.data);
+        // Update IndexedDB
+        await db.tasks.clear();
+        await db.tasks.bulkPut(result.data);
       }
-    } catch (err) {
-      console.error("[TasksProvider] Critical error in fetchAllTasks:", err);
-      setErrorLoadingAllTasks(err instanceof Error ? err.message : String(err));
-      const offlineTasks = await db.tasks.toArray();
-      if (offlineTasks.length > 0) {
-        setAllTasks(offlineTasks);
-      } else {
+    } catch (error) {
+      console.error("[TasksProvider] Critical error:", error);
+      setErrorLoadingAllTasks(
+        error instanceof Error ? error.message : String(error)
+      );
+
+      // Try to load from IndexedDB
+      try {
+        const offlineTasks = await db.tasks.toArray();
+        if (offlineTasks.length > 0) {
+          setAllTasks(offlineTasks);
+        } else {
+          setAllTasks([]);
+        }
+      } catch (dbError) {
+        console.error("[TasksProvider] IndexedDB error:", dbError);
         setAllTasks([]);
       }
     } finally {
       setIsLoadingAllTasks(false);
     }
-  }, [currentTasksSignature]); // currentTasksSignature is a dependency
+  }, []);
 
-  const initialLoadEffectRan = React.useRef(false);
-
+  // Initial load with retry logic
   React.useEffect(() => {
-    if (process.env.NODE_ENV === "development") {
-      if (initialLoadEffectRan.current === true) {
-        return;
-      }
-      initialLoadEffectRan.current = true;
-    }
+    let timeoutId: NodeJS.Timeout;
 
     const loadInitialData = async () => {
-      setIsLoadingAllTasks(true);
       try {
-        const [offlineTasks, serverResult] = await Promise.all([
-          db.tasks.toArray(),
-          getAllTasksFromKV()
-        ]);
-
-        if (offlineTasks.length > 0) {
-          setAllTasks(offlineTasks);
-        }
-
-        if (serverResult.error) {
-          setErrorLoadingAllTasks(serverResult.error);
-          if (!offlineTasks.length) setAllTasks([]);
-        } else if (serverResult.data) {
-          const fetchedDataSafe = serverResult.data;
-          setAllTasks(fetchedDataSafe);
-          await db.tasks.clear();
-          await db.tasks.bulkPut(fetchedDataSafe);
-        } else {
-          setAllTasks([]);
-          await db.tasks.clear();
-        }
+        await fetchAllTasksFromServer();
       } catch (error) {
-        console.error("[TasksProvider] Error:", error);
-        setErrorLoadingAllTasks(
-          error instanceof Error ? error.message : String(error)
-        );
-        setAllTasks([]);
+        console.error("[TasksProvider] Initial load error:", error);
+        if (retryCount < MAX_RETRIES) {
+          console.log(
+            `[TasksProvider] Retrying... (${retryCount + 1}/${MAX_RETRIES})`
+          );
+          timeoutId = setTimeout(() => {
+            setRetryCount((prev) => prev + 1);
+          }, Math.min(1000 * Math.pow(2, retryCount), 10000)); // Exponential backoff
+        }
       }
-      // setIsLoadingAllTasks(false) is handled by fetchAllTasksFromServer's finally block
     };
 
     loadInitialData();
-  }, [fetchAllTasksFromServer]);
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [fetchAllTasksFromServer, retryCount]);
 
   const getTaskById = React.useCallback(
     (id: string): Task | undefined => {
